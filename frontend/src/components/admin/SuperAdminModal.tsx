@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import {
+  Blocks,
   Building2,
   Check,
   CheckCircle2,
@@ -38,7 +39,7 @@ import type { Organization, PlatformSettings } from "@/lib/types";
 import { PlatformIntegrationsPanel } from "@/components/integrations/PlatformIntegrationsPanel";
 import { MediaAssetUploader } from "@/components/common/MediaAssetUploader";
 
-type ConsoleTab = "organizations" | "platform_settings" | "invite_client";
+type ConsoleTab = "organizations" | "platform_settings" | "integrations" | "invite_client";
 
 /** Feature entitlements grouped the way the client workspace is organised. */
 const FEATURE_GROUPS: Array<{
@@ -821,7 +822,9 @@ export function SuperAdminControlPlane({
               </button>
             </div>
           </form>
-
+        </div>
+      ) : activeTab === "integrations" ? (
+        <div className="space-y-6">
           <PlatformIntegrationsPanel
             organizations={organizations}
             onUpdated={loadData}
@@ -1020,8 +1023,23 @@ export function SuperAdminControlPlane({
                   : "border-transparent text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
               }`}
             >
-              <KeyRound className="h-4 w-4" />
-              <span>Platform Domain &amp; OAuth</span>
+              <Sliders className="h-4 w-4" />
+              <span>Platform Settings</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab("integrations");
+                setFeedback(null);
+              }}
+              className={`flex items-center gap-2 border-b-2 py-3 text-sm font-semibold transition cursor-pointer ${
+                activeTab === "integrations"
+                  ? "border-amber-600 text-amber-600 dark:border-amber-400 dark:text-amber-400"
+                  : "border-transparent text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+              }`}
+            >
+              <Blocks className="h-4 w-4" />
+              <span>Third-Party Integrations</span>
             </button>
             <button
               type="button"
@@ -1075,7 +1093,8 @@ export function SuperAdminControlPlane({
         }}
         tabs={[
           { id: "organizations", label: "Client directory", icon: Building2, count: organizations.length },
-          { id: "platform_settings", label: "Domain & sign-in", icon: KeyRound },
+          { id: "platform_settings", label: "Platform settings", icon: Sliders },
+          { id: "integrations", label: "Third-party integrations", icon: Blocks },
           { id: "invite_client", label: "Invite client", icon: UserPlus },
         ]}
       />
@@ -1089,7 +1108,9 @@ export function SuperAdminControlPlane({
           activeTab === "organizations"
             ? "Suspending a client blocks sign-in for every member."
             : activeTab === "platform_settings"
-            ? "Applies to every client without custom OAuth."
+            ? "Configure platform domain, branding, and Remember Me / token lifetime."
+            : activeTab === "integrations"
+            ? "Applies to every client using platform fallback credentials."
             : undefined
         }
       >
