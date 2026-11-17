@@ -61,6 +61,7 @@ import {
 import { MediaAssetUploader } from "@/components/common/MediaAssetUploader";
 import { apiClient } from "@/lib/api-client";
 import { PlatformIntegrationsPanel } from "@/components/integrations/PlatformIntegrationsPanel";
+import { RememberMePolicyFields } from "@/components/admin/SuperAdminModal";
 import { formatCurrency, formatCompactCurrency, formatDate, formatDateTimeWithSeconds } from "@/lib/format";
 import type {
   AuthUser,
@@ -120,6 +121,7 @@ const FEATURE_GROUPS: Array<{
       { key: "sub_custom_google_oauth", label: "Client custom OAuth" },
       { key: "sub_executive_triage", label: "Executive threshold triage" },
       { key: "sub_team_invitations", label: "Team member invites" },
+      { key: "sub_auth_remember_me", label: "Remember Me persistent login", defaultEnabled: true },
     ],
   },
 ];
@@ -183,6 +185,9 @@ export function PlatformSuperAdminPortal({
   const [siteDescription, setSiteDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [socialCoverUrl, setSocialCoverUrl] = useState("");
+  const [rememberMeEnabled, setRememberMeEnabled] = useState<boolean>(true);
+  const [rememberMeDurationDays, setRememberMeDurationDays] = useState<number>(30);
+  const [accessTokenLifetimeMinutes, setAccessTokenLifetimeMinutes] = useState<number>(1440);
   const [savingPlatform, setSavingPlatform] = useState(false);
 
   // Filter & Pagination States
@@ -234,6 +239,9 @@ export function PlatformSuperAdminPortal({
         setSiteDescription(platRes.site_description || "");
         setLogoUrl(platRes.logo_url || "");
         setSocialCoverUrl(platRes.social_cover_url || "");
+        setRememberMeEnabled(platRes.remember_me_enabled !== false);
+        setRememberMeDurationDays(platRes.remember_me_duration_days ?? 30);
+        setAccessTokenLifetimeMinutes(platRes.access_token_lifetime_minutes ?? 1440);
       }
     } catch (err) {
       setFeedback({
@@ -452,12 +460,15 @@ export function PlatformSuperAdminPortal({
         site_description: siteDescription.trim() || null,
         logo_url: logoUrl.trim() || null,
         social_cover_url: socialCoverUrl.trim() || null,
+        remember_me_enabled: rememberMeEnabled,
+        remember_me_duration_days: rememberMeDurationDays,
+        access_token_lifetime_minutes: accessTokenLifetimeMinutes,
       };
       const res = await apiClient.patch<PlatformSettings>("/superadmin/platform-settings/", payload);
       setPlatformSettings(res.data);
       setFeedback({
         type: "success",
-        message: "Platform host and base domain settings saved!",
+        message: "Platform host, branding, and Remember Me policy settings saved!",
       });
     } catch (err) {
       setFeedback({
@@ -1132,13 +1143,17 @@ export function PlatformSuperAdminPortal({
                     <div className="rounded-xl border border-stone-200/80 bg-stone-50/70 p-3.5 dark:border-stone-800 dark:bg-stone-950/40">
                       <div className="flex items-center gap-2 text-xs font-semibold text-stone-700 dark:text-stone-300">
                         <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                        <span>Data Isolation &amp; RBAC</span>
+                        <span>Data Isolation &amp; Session Auth</span>
                       </div>
                       <p className="mt-1 text-xs text-stone-900 dark:text-stone-100">
-                        Strict Tenant FK Scoping &amp; Row-Level Security
+                        Strict Tenant FK Scoping &amp; Auto-Refresh JWT
                       </p>
                       <span className="mt-1 inline-block text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                        ✓ Zero cross-tenant data leakage verified
+                        Remember Me:{" "}
+                        {rememberMeEnabled
+                          ? `Active (${rememberMeDurationDays}d limit)`
+                          : "Disabled"}{" "}
+                        · Dynamic Token Refresh
                       </span>
                     </div>
 
@@ -1855,21 +1870,30 @@ export function PlatformSuperAdminPortal({
                       hint="Stored in Cloudflare R2 bucket root under beamline/social/. If empty, the dynamic platform vector theme is served."
                     />
                   </div>
+                </div>
 
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={savingPlatform || loading}
-                      className="btn-primary"
-                    >
-                      {savingPlatform ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Save className="size-4" />
-                      )}
-                      {savingPlatform ? "Saving..." : "Save Platform Settings"}
-                    </button>
-                  </div>
+                <RememberMePolicyFields
+                  rememberMeEnabled={rememberMeEnabled}
+                  onToggleRememberMe={setRememberMeEnabled}
+                  rememberMeDurationDays={rememberMeDurationDays}
+                  onChangeDurationDays={setRememberMeDurationDays}
+                  accessTokenLifetimeMinutes={accessTokenLifetimeMinutes}
+                  onChangeAccessLifetimeMinutes={setAccessTokenLifetimeMinutes}
+                />
+
+                <div className="pt-1">
+                  <button
+                    type="submit"
+                    disabled={savingPlatform || loading}
+                    className="btn-primary"
+                  >
+                    {savingPlatform ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Save className="size-4" />
+                    )}
+                    {savingPlatform ? "Saving..." : "Save Platform Settings"}
+                  </button>
                 </div>
               </form>
 
