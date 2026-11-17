@@ -168,7 +168,7 @@ class R2AssetLifecycleService:
         s3 = cls.get_s3_client()
         bucket = getattr(settings, "R2_BUCKET_NAME", "root")
         prefix = getattr(settings, "R2_KEY_PREFIX", "beamline").strip("/")
-        folders = ["branding", "social", "media", "users"]
+        folders = ["branding", "social", "media", "users", "properties", "verifications"]
         for f in folders:
             key = f"{prefix}/tenants/{tenant_slug}/{f}/.keep"
             if s3:
