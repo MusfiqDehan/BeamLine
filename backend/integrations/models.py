@@ -171,6 +171,7 @@ class PaymentTransaction(models.Model):
         PLATFORM_SUBSCRIPTION = "PLATFORM_SUBSCRIPTION", "Platform SaaS Subscription"
         TENANT_INVOICE = "TENANT_INVOICE", "Tenant Project Invoice / Cost"
         TENANT_DEAL = "TENANT_DEAL", "Tenant Construction Deal Deposit"
+        GUEST_UPSELL = "GUEST_UPSELL", "Guest Experience & Service Upsell"
 
     class Status(models.TextChoices):
         INITIATED = "INITIATED", "Initiated"
