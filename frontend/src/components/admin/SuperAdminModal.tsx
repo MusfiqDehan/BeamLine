@@ -54,12 +54,13 @@ const FEATURE_GROUPS: Array<{
       { key: "page_overview", label: "Executive overview" },
       { key: "page_crm", label: "Sales CRM pipeline" },
       { key: "page_projects", label: "4-phase projects" },
+      { key: "page_property_ops", label: "Property care & hospitality ops" },
       { key: "page_automation", label: "Invoices & automation" },
     ],
   },
   {
     title: "CRM & field modules",
-    description: "Sub-views inside Sales and Active Builds.",
+    description: "Sub-views inside Sales, Active Builds, and Property Care.",
     items: [
       { key: "sub_crm_deals", label: "High-value deals" },
       { key: "sub_crm_contacts", label: "Contacts & leads" },
@@ -67,6 +68,11 @@ const FEATURE_GROUPS: Array<{
       { key: "sub_projects_board", label: "Lifecycle phases" },
       { key: "sub_projects_tasks", label: "Task checklists" },
       { key: "sub_projects_materials", label: "Material orders" },
+      { key: "sub_property_properties", label: "Property readiness board" },
+      { key: "sub_property_checklists", label: "Guided work & photo verification" },
+      { key: "sub_property_turnovers", label: "Turnovers & reservations" },
+      { key: "sub_property_upsells", label: "Guest upsells & service revenue" },
+      { key: "sub_integration_pms", label: "PMS & smart lock sync" },
     ],
   },
   {
@@ -79,9 +85,144 @@ const FEATURE_GROUPS: Array<{
       { key: "sub_custom_google_oauth", label: "Client custom OAuth" },
       { key: "sub_executive_triage", label: "Executive threshold triage" },
       { key: "sub_team_invitations", label: "Team member invites" },
+      { key: "sub_auth_remember_me", label: "Remember Me persistent login", defaultEnabled: true },
     ],
   },
 ];
+
+export function RememberMePolicyFields({
+  rememberMeEnabled,
+  onToggleRememberMe,
+  rememberMeDurationDays,
+  onChangeDurationDays,
+  accessTokenLifetimeMinutes,
+  onChangeAccessLifetimeMinutes,
+}: {
+  rememberMeEnabled: boolean;
+  onToggleRememberMe: (next: boolean) => void;
+  rememberMeDurationDays: number;
+  onChangeDurationDays: (days: number) => void;
+  accessTokenLifetimeMinutes: number;
+  onChangeAccessLifetimeMinutes: (minutes: number) => void;
+}) {
+  const durationPresets = [1, 7, 14, 30, 60, 90, 180, 365];
+  const accessPresets = [
+    { label: "60m (1h)", minutes: 60 },
+    { label: "480m (8h)", minutes: 480 },
+    { label: "1440m (24h)", minutes: 1440 },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-xs dark:border-stone-800 dark:bg-stone-900 space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">
+            Authentication, Remember Me &amp; Token Policy
+          </h3>
+          <p className="text-xs text-stone-500 dark:text-stone-400">
+            Control the Remember Me login feature, how long tokens/credentials stay remembered, and silent access-token renewal windows.
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center gap-1.5 self-start rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+            rememberMeEnabled
+              ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300"
+              : "bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400"
+          }`}
+        >
+          {rememberMeEnabled ? `Remember Me Active (${rememberMeDurationDays}d)` : "Remember Me Disabled"}
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-stone-200/80 bg-stone-50/70 p-3.5 dark:border-stone-800 dark:bg-stone-950/40">
+        <Switch
+          label="Enable 'Remember Me' on Login Page"
+          description="Allows users to persist login credentials and long-lived refresh tokens across browser restarts."
+          checked={rememberMeEnabled}
+          onChange={onToggleRememberMe}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          label="Remember Me Time Limit (Days)"
+          hint={`Credentials & refresh tokens remain valid for ${rememberMeDurationDays} ${
+            rememberMeDurationDays === 1 ? "day" : "days"
+          } (1–365 days) before requiring re-authentication.`}
+        >
+          <input
+            type="number"
+            min={1}
+            max={365}
+            required
+            disabled={!rememberMeEnabled}
+            value={rememberMeDurationDays}
+            onChange={(e) => {
+              const parsed = Number(e.target.value);
+              if (!Number.isNaN(parsed)) {
+                onChangeDurationDays(Math.max(1, Math.min(365, Math.round(parsed))));
+              }
+            }}
+            className="input font-mono disabled:opacity-50"
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {durationPresets.map((days) => (
+              <button
+                key={days}
+                type="button"
+                disabled={!rememberMeEnabled}
+                onClick={() => onChangeDurationDays(days)}
+                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition cursor-pointer disabled:opacity-40 ${
+                  rememberMeDurationDays === days
+                    ? "border-amber-500 bg-amber-50 text-amber-800 dark:border-amber-500/70 dark:bg-amber-950/60 dark:text-amber-300"
+                    : "border-stone-200 bg-white text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300"
+                }`}
+              >
+                {days} {days === 1 ? "Day" : "Days"}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        <Field
+          label="Access Token Lifetime (Minutes)"
+          hint="Expired access tokens are automatically renewed in the background by the valid refresh token so clients never face sudden logout."
+        >
+          <input
+            type="number"
+            min={5}
+            max={43200}
+            required
+            value={accessTokenLifetimeMinutes}
+            onChange={(e) => {
+              const parsed = Number(e.target.value);
+              if (!Number.isNaN(parsed)) {
+                onChangeAccessLifetimeMinutes(Math.max(5, Math.min(43200, Math.round(parsed))));
+              }
+            }}
+            className="input font-mono"
+          />
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {accessPresets.map((preset) => (
+              <button
+                key={preset.minutes}
+                type="button"
+                onClick={() => onChangeAccessLifetimeMinutes(preset.minutes)}
+                className={`rounded-lg border px-2 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                  accessTokenLifetimeMinutes === preset.minutes
+                    ? "border-amber-500 bg-amber-50 text-amber-800 dark:border-amber-500/70 dark:bg-amber-950/60 dark:text-amber-300"
+                    : "border-stone-200 bg-white text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300"
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </Field>
+      </div>
+    </div>
+  );
+}
 
 export interface SuperAdminControlPlaneProps {
   onClose?: () => void;
@@ -112,6 +253,9 @@ export function SuperAdminControlPlane({
   const [siteDescription, setSiteDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [socialCoverUrl, setSocialCoverUrl] = useState("");
+  const [rememberMeEnabled, setRememberMeEnabled] = useState<boolean>(true);
+  const [rememberMeDurationDays, setRememberMeDurationDays] = useState<number>(30);
+  const [accessTokenLifetimeMinutes, setAccessTokenLifetimeMinutes] = useState<number>(1440);
   const [savingPlatform, setSavingPlatform] = useState(false);
 
   // Invite client form state
@@ -149,6 +293,9 @@ export function SuperAdminControlPlane({
         setSiteDescription(p.site_description || "");
         setLogoUrl(p.logo_url || "");
         setSocialCoverUrl(p.social_cover_url || "");
+        setRememberMeEnabled(p.remember_me_enabled !== false);
+        setRememberMeDurationDays(p.remember_me_duration_days ?? 30);
+        setAccessTokenLifetimeMinutes(p.access_token_lifetime_minutes ?? 1440);
         setOrganizations(orgsRes.results || []);
       })
       .catch((err) => {
@@ -253,6 +400,9 @@ export function SuperAdminControlPlane({
         site_description: siteDescription.trim() || null,
         logo_url: logoUrl.trim() || null,
         social_cover_url: socialCoverUrl.trim() || null,
+        remember_me_enabled: rememberMeEnabled,
+        remember_me_duration_days: rememberMeDurationDays,
+        access_token_lifetime_minutes: accessTokenLifetimeMinutes,
       };
       const res = await apiClient.patch<PlatformSettings>(
         "/superadmin/platform-settings/",
@@ -649,17 +799,26 @@ export function SuperAdminControlPlane({
                   hint="Stored in Cloudflare R2 bucket root under beamline/social/. If empty, the dynamic platform vector theme is served."
                 />
               </div>
+            </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={savingPlatform || loading}
-                  className="btn-primary"
-                >
-                  {savingPlatform ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  {savingPlatform ? "Saving Platform Settings..." : "Save Platform Settings"}
-                </button>
-              </div>
+            <RememberMePolicyFields
+              rememberMeEnabled={rememberMeEnabled}
+              onToggleRememberMe={setRememberMeEnabled}
+              rememberMeDurationDays={rememberMeDurationDays}
+              onChangeDurationDays={setRememberMeDurationDays}
+              accessTokenLifetimeMinutes={accessTokenLifetimeMinutes}
+              onChangeAccessLifetimeMinutes={setAccessTokenLifetimeMinutes}
+            />
+
+            <div className="pt-1">
+              <button
+                type="submit"
+                disabled={savingPlatform || loading}
+                className="btn-primary"
+              >
+                {savingPlatform ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                {savingPlatform ? "Saving Platform Settings..." : "Save Platform Settings"}
+              </button>
             </div>
           </form>
 
