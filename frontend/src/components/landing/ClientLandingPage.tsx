@@ -5,9 +5,12 @@ import Link from "next/link";
 import {
   ArrowRight,
   Building2,
+  CalendarClock,
+  Camera,
   CheckCircle2,
   ClipboardCheck,
   FileCheck2,
+  KeyRound,
   LockKeyhole,
   MessageSquareText,
   ShieldCheck,
@@ -27,27 +30,51 @@ const capabilities = [
     icon: MessageSquareText,
     title: "One clear conversation",
     description:
-      "Keep selections, updates, decisions, and project communication connected from the first meeting onward.",
+      "Keep selections, updates, care requests, and project communication connected from the first meeting onward.",
   },
   {
     icon: ClipboardCheck,
-    title: "Visible milestones",
+    title: "Visible milestones & readiness",
     description:
-      "Follow each phase of the build with a shared view of priorities, progress, and what comes next.",
+      "Follow each build phase or live property readiness status with a shared view of priorities and what comes next.",
   },
   {
     icon: FileCheck2,
-    title: "Documents in one place",
+    title: "Documents & billing in one place",
     description:
-      "Access agreements, project details, and financial records from one secure client workspace.",
+      "Access agreements, inspection logs, invoices, and property records from one secure client workspace.",
+  },
+];
+
+const propertyCareFeatures = [
+  {
+    icon: CalendarClock,
+    title: "Coordinated Turnovers & Preventive Care",
+    description:
+      "Automated scheduling for turnovers, seasonal maintenance, and warranty walkthroughs — ensuring every property stays immaculate between stays.",
+    badge: "Same-Day SLA",
+  },
+  {
+    icon: Camera,
+    title: "Photo-Verified Quality Assurance",
+    description:
+      "Room-by-room visual checklists backed by timestamped photo proof and instant escalation whenever a repair or restock is needed.",
+    badge: "100% Verified Ready",
+  },
+  {
+    icon: Sparkles,
+    title: "Concierge & Stay Experience Add-Ons",
+    description:
+      "Seamless access to early check-in, mid-stay refresh cleans, heated pool & spa prep, and bespoke provisioning — boosting owner & operator revenue.",
+    badge: "Service Revenue",
   },
 ];
 
 const journey = [
-  ["01", "Discover", "Align on your vision, site, priorities, and the way you want to live."],
-  ["02", "Plan", "Turn the brief into a coordinated scope, schedule, and decision roadmap."],
-  ["03", "Build", "Stay connected to progress while the project team manages every detail."],
-  ["04", "Welcome home", "Move into a finished home with the records and support you need."],
+  ["01", "Discover", "Align on your vision, property goals, priorities, and the experience you want to deliver."],
+  ["02", "Plan", "Turn the brief into a coordinated scope, schedule, checklist standard, and decision roadmap."],
+  ["03", "Build & Coordinate", "Stay connected to live progress while field teams manage every detail and inspection."],
+  ["04", "Care & Elevate", "Transition into ongoing warranty care, verified turnovers, and concierge hospitality."],
 ];
 
 function ClientBrand({ tenant, inverse = false }: { tenant: ClientTenant; inverse?: boolean }) {
@@ -97,6 +124,8 @@ function ClientBrand({ tenant, inverse = false }: { tenant: ClientTenant; invers
 }
 
 export function ClientLandingPage({ tenant }: { tenant: ClientTenant }) {
+  const hasPropertyOps = tenant.feature_flags?.page_property_ops !== false;
+  const hasProjects = tenant.feature_flags?.page_projects !== false;
   const tenantHomeUrl = tenant.custom_domain
     ? `https://${tenant.custom_domain}`
     : tenant.slug
@@ -142,14 +171,18 @@ export function ClientLandingPage({ tenant }: { tenant: ClientTenant }) {
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs font-bold text-stone-100 backdrop-blur-md">
                 <Sparkles className="size-3.5 text-amber-300" aria-hidden="true" />
-                Thoughtful homes. Clearer building journeys.
+                {hasPropertyOps && hasProjects
+                  ? "Custom building, verified property care & elevated hospitality."
+                  : hasPropertyOps
+                  ? "Verified property operations & elevated guest experiences."
+                  : "Thoughtful homes. Clearer building journeys."}
               </div>
               <h1 className="mt-6 text-balance text-4xl font-black leading-none tracking-tight sm:text-6xl lg:text-7xl">
-                {tenant.site_title || "Building the place where your story unfolds."}
+                {tenant.site_title || "Building & caring for the places where stories unfold."}
               </h1>
               <p className="mt-6 max-w-2xl text-pretty text-base leading-7 text-stone-200 sm:text-xl sm:leading-8">
                 {tenant.site_description ||
-                  `${tenant.name} brings design, craft, and communication together to make an exceptional custom home feel considered from the first conversation to move-in day.`}
+                  `${tenant.name} brings design, craft, verified property care, and hospitality together — delivering confidence from the first conversation through ongoing ownership and stays.`}
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
@@ -167,7 +200,11 @@ export function ClientLandingPage({ tenant }: { tenant: ClientTenant }) {
                 </Link>
               </div>
               <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold text-stone-200">
-                {["Private client access", "Live project visibility", "Secure documents"].map((item) => (
+                {[
+                  "Private client access",
+                  "Live project & property readiness",
+                  ...(hasPropertyOps ? ["Photo-verified property care", "Concierge & stay add-ons"] : ["Secure documents"]),
+                ].map((item) => (
                   <span key={item} className="flex items-center gap-2">
                     <CheckCircle2 className="size-4 text-amber-300" aria-hidden="true" />
                     {item}
@@ -240,6 +277,53 @@ export function ClientLandingPage({ tenant }: { tenant: ClientTenant }) {
           </div>
         </section>
 
+        {hasPropertyOps && (
+          <section id="property-care" className="bg-white py-20 sm:py-28 dark:bg-stone-900">
+            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+              <div className="grid gap-10 lg:grid-cols-2 lg:items-end">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
+                    Property care &amp; hospitality experience
+                  </p>
+                  <h2 className="mt-4 text-balance text-3xl font-black tracking-tight text-stone-950 sm:text-5xl dark:text-white">
+                    Verified care after handoff — and elevated every stay.
+                  </h2>
+                </div>
+                <p className="max-w-2xl text-pretty text-base leading-7 text-stone-600 sm:text-lg dark:text-stone-300">
+                  Whether managing a luxury residence under warranty or operating short-term rental portfolios,{" "}
+                  {tenant.name} coordinates turnovers, verifies work with visual proof, and unlocks curated guest services.
+                </p>
+              </div>
+
+              <div className="mt-12 grid gap-4 md:grid-cols-3">
+                {propertyCareFeatures.map(({ icon: Icon, title, description, badge }) => (
+                  <article
+                    key={title}
+                    className="group flex flex-col justify-between rounded-3xl border border-stone-200 bg-stone-50 p-6 transition hover:-translate-y-1 hover:border-amber-300 hover:shadow-xl hover:shadow-stone-950/5 sm:p-8 dark:border-stone-800 dark:bg-stone-950 dark:hover:border-amber-500/50"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex size-11 items-center justify-center rounded-xl bg-amber-100 text-amber-800 transition group-hover:bg-amber-400 group-hover:text-stone-950 dark:bg-amber-400/15 dark:text-amber-300">
+                          <Icon className="size-5" aria-hidden="true" />
+                        </span>
+                        <span className="rounded-full bg-emerald-100 px-3 py-1 text-[0.7rem] font-black text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300">
+                          {badge}
+                        </span>
+                      </div>
+                      <h3 className="mt-6 text-xl font-black text-stone-950 dark:text-white">{title}</h3>
+                      <p className="mt-3 text-sm leading-6 text-stone-600 dark:text-stone-400">{description}</p>
+                    </div>
+                    <div className="mt-6 flex items-center gap-2 text-xs font-bold text-stone-500 dark:text-stone-400">
+                      <KeyRound className="size-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                      Smart access &amp; verified portal tracking
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         <section className="bg-stone-950 py-20 text-white sm:py-28">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-stone-900 p-6 sm:p-10 lg:p-14">
@@ -250,11 +334,14 @@ export function ClientLandingPage({ tenant }: { tenant: ClientTenant }) {
                     <ShieldCheck className="size-6" aria-hidden="true" />
                   </span>
                   <h2 className="mt-6 text-balance text-3xl font-black tracking-tight sm:text-5xl">
-                    Your project, always within reach.
+                    {hasPropertyOps
+                      ? "Your build & property care, always within reach."
+                      : "Your project, always within reach."}
                   </h2>
                   <p className="mt-4 text-pretty text-base leading-7 text-stone-300 sm:text-lg">
-                    Sign in to your private portal for project updates, important records, and a clear
-                    view of your build.
+                    {hasPropertyOps
+                      ? "Sign in to your private portal for build milestones, verified property checklists, turnover readiness, and concierge service add-ons."
+                      : "Sign in to your private portal for project updates, important records, and a clear view of your build."}
                   </p>
                 </div>
                 <Link
