@@ -1,5 +1,7 @@
 import {
   BarChart3,
+  Building2,
+  Camera,
   ClipboardCheck,
   FileCheck2,
   Hammer,
@@ -7,6 +9,7 @@ import {
   Layers3,
   Ruler,
   ShieldCheck,
+  Sparkles,
   Truck,
   UsersRound,
   Workflow,
@@ -24,7 +27,13 @@ export const navLinks = [
   { label: "FAQ", href: "#faq" },
 ] as const;
 
-export const rotatingWords = ["digital HQ.", "sharper pipeline.", "calmer job site.", "healthier margin."];
+export const rotatingWords = [
+  "digital HQ.",
+  "sharper pipeline.",
+  "calmer job site.",
+  "verified property ops.",
+  "higher service revenue.",
+];
 
 export const tapeItems: Array<{ label: string; icon: LucideIcon }> = [
   { label: "Lead capture", icon: UsersRound },
@@ -32,6 +41,9 @@ export const tapeItems: Array<{ label: string; icon: LucideIcon }> = [
   { label: "Permits & engineering", icon: ClipboardCheck },
   { label: "Framing & rough MEP", icon: Hammer },
   { label: "Material deliveries", icon: Truck },
+  { label: "Property care & turnovers", icon: Building2 },
+  { label: "Photo-verified checklists", icon: Camera },
+  { label: "Guest experience upsells", icon: Sparkles },
   { label: "Invoice automation", icon: Workflow },
   { label: "Duplicate protection", icon: ShieldCheck },
   { label: "Executive dashboards", icon: BarChart3 },
@@ -47,7 +59,7 @@ export const stats = [
 ];
 
 export type ExplorerTab = {
-  id: "sales" | "projects" | "invoices" | "insights";
+  id: "sales" | "projects" | "property_ops" | "invoices" | "insights";
   label: string;
   icon: LucideIcon;
   title: string;
@@ -73,6 +85,19 @@ export const explorerTabs: ExplorerTab[] = [
     points: ["Pre-construction, build, closeout, warranty", "Milestones, materials, and inspections in one view", "At-risk tasks surface before they slip"],
   },
   {
+    id: "property_ops",
+    label: "Property care & ops",
+    icon: Building2,
+    title: "Coordinate, verify, and monetize every property.",
+    description:
+      "Power short-term rental turnovers, estate retainers, and post-build care. Auto-schedule tasks from reservations, enforce R2 photo proof, and unlock guest upsell revenue.",
+    points: [
+      "Same-day turnover & smart-lock readiness tracking",
+      "Room-by-room photo checklists & auto defect escalation",
+      "Paid guest add-ons (early check-in, refresh cleans, concierge)",
+    ],
+  },
+  {
     id: "invoices",
     label: "Invoice automation",
     icon: Workflow,
@@ -85,8 +110,8 @@ export const explorerTabs: ExplorerTab[] = [
     label: "Executive insight",
     icon: BarChart3,
     title: "The whole business on one calm screen.",
-    description: "Pipeline value, active builds, cost exposure, and the decisions waiting on you — without chasing anyone for updates.",
-    points: ["Live pipeline and backlog value", "Cost-to-date versus budget", "A single queue for leadership decisions"],
+    description: "Pipeline value, active builds, managed properties, service revenue, and leadership decisions — without chasing anyone for updates.",
+    points: ["Live pipeline, build, and property readiness KPIs", "Cost-to-date versus budget & service upsell revenue", "A single queue for leadership decisions"],
   },
 ];
 
@@ -146,6 +171,21 @@ export const tenants: TenantTheme[] = [
     },
     metrics: [["$2.7M", "Pipeline"], ["18", "Live builds"], ["98%", "On-time tasks"]],
   },
+  {
+    id: "coastal",
+    name: "Coastal Haven Hospitality",
+    initials: "C",
+    slug: "coastalhaven",
+    specialty: "Short-term rentals & luxury estates",
+    accent: {
+      solid: "bg-violet-400 text-stone-950",
+      soft: "bg-violet-400/15",
+      text: "text-violet-300",
+      ring: "ring-violet-400",
+      bar: "bg-violet-400",
+    },
+    metrics: [["140", "Managed units"], ["99%", "Verified turns"], ["+$42K", "Upsell rev"]],
+  },
 ];
 
 export const phases = [
@@ -169,8 +209,14 @@ export const phases = [
   },
   {
     step: "04",
-    title: "Grow",
-    description: "Clean delivery data sharpens forecasting, protects margin, and frees capacity for more work.",
+    title: "Care & Verify",
+    description: "Promote finished builds or onboard STR portfolios with automated turnovers and photo-verified checklists.",
+    icon: Building2,
+  },
+  {
+    step: "05",
+    title: "Monetize & Grow",
+    description: "Boost recurring service revenue through guest upsells, estate retainers, and margin-protected cost intelligence.",
     icon: Zap,
   },
 ];
@@ -179,21 +225,21 @@ export const plans = [
   {
     name: "Foundation",
     monthly: 299,
-    description: "For small builders replacing spreadsheets and generic CRMs.",
-    features: ["Branded subdomain", "Up to 5 team members", "CRM + project workflows", "Core dashboards", "Email support"],
+    description: "For small builders and boutique hosts replacing spreadsheets.",
+    features: ["Branded subdomain", "Up to 5 team members", "CRM + project workflows", "Property care checklists", "Core dashboards & support"],
   },
   {
-    name: "Builder",
+    name: "Builder & Hospitality",
     monthly: 699,
-    description: "For growing teams that want automation and executive oversight.",
-    features: ["Custom domain + subdomain", "Up to 20 team members", "Invoice intake automation", "Executive review queues", "Priority onboarding"],
+    description: "For growing builders and STR operators automating operations & revenue.",
+    features: ["Custom domain + subdomain", "Up to 20 team members", "Invoice & turnover automation", "R2 photo proof & guest upsells", "PMS sync & review queues"],
     featured: true,
   },
   {
     name: "Enterprise",
     monthly: null,
-    description: "For multi-division builders with tailored workflows and integrations.",
-    features: ["Multiple business units", "Unlimited team members", "Custom workflows", "Integration support", "Dedicated success lead"],
+    description: "For multi-division builders and large property managers with custom scale.",
+    features: ["Multiple business units", "Unlimited team members & units", "Custom n8n & PMS workflows", "BYOC payment & AI vault", "Dedicated success lead"],
   },
 ];
 
@@ -201,7 +247,12 @@ export const faqs = [
   {
     question: "Who is BeamLine built for?",
     answer:
-      "Custom home builders, design-build firms, and high-end renovation companies that run complex, high-value projects and want one system for sales, delivery, and cost control.",
+      "Custom home builders, design-build firms, luxury estate managers, and short-term rental or hospitality operators who want one platform for sales, construction delivery, verified property care, and service revenue.",
+  },
+  {
+    question: "How does the Property Operations & Experience platform work?",
+    answer:
+      "You can promote completed construction builds into managed properties in one click or onboard standalone rental units. BeamLine auto-schedules turnovers from bookings, enforces room-by-room R2 photo checklists, escalates defects into repair tasks and costs, and monetizes guest add-ons like early check-in or pool heating.",
   },
   {
     question: "What does multi-tenant mean for my company?",
