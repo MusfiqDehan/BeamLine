@@ -26,6 +26,12 @@ def get_default_feature_flags() -> dict[str, bool]:
         "sub_projects_board": True,
         "sub_projects_tasks": True,
         "sub_projects_materials": True,
+        # Property Operations & Experience Platform
+        "page_property_ops": True,
+        "sub_property_properties": True,
+        "sub_property_turnovers": True,
+        "sub_property_checklists": True,
+        "sub_property_upsells": True,
         # Automation & Finance Sub-Features
         "sub_automation_invoices": True,
         "sub_automation_emails": True,
@@ -39,7 +45,9 @@ def get_default_feature_flags() -> dict[str, bool]:
         "sub_integration_stripe": True,
         "sub_integration_bkash": True,
         "sub_integration_sslcommerz": True,
+        "sub_integration_pms": True,
         "sub_team_invitations": True,
+        "sub_auth_remember_me": True,
     }
 
 
@@ -65,6 +73,18 @@ class PlatformSettings(models.Model):
     logo_url = models.URLField(max_length=500, blank=True, default="", help_text="Platform brand logo URL.")
     social_cover_url = models.URLField(max_length=500, blank=True, default="", help_text="Platform 1200x630 OpenGraph & Twitter social cover image URL.")
     allow_self_registration = models.BooleanField(default=False)
+    remember_me_enabled = models.BooleanField(
+        default=True,
+        help_text="Allow users and client workspaces to use Remember Me persistent login and credential remembering.",
+    )
+    remember_me_duration_days = models.PositiveIntegerField(
+        default=30,
+        help_text="How many days Remember Me keeps refresh tokens and remembered login credentials valid (e.g. 1 to 365 days).",
+    )
+    access_token_lifetime_minutes = models.PositiveIntegerField(
+        default=1440,
+        help_text="Access token lifetime in minutes before automatic silent renewal via refresh token (default 1440 = 24 hours).",
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
