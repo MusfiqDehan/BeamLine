@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Bot,
   Brain,
+  Building2,
   Check,
   CheckCircle2,
   Clock,
@@ -267,6 +268,33 @@ const integrationsList: IntegrationItem[] = [
     ],
     byocSupported: true,
   },
+  {
+    id: "pms-sync",
+    name: "Hospitality PMS & Smart Locks",
+    category: "workspace",
+    providerType: "Property & Access Sync",
+    tag: "STR & Locks",
+    icon: Building2,
+    badgeTone: {
+      bg: "bg-violet-500/10 dark:bg-violet-500/20",
+      text: "text-violet-600 dark:text-violet-400",
+      border: "border-violet-500/30",
+      glow: "hover:shadow-violet-500/10",
+    },
+    headline: "Auto-schedule turnovers & verify smart-lock pins from bookings.",
+    description:
+      "Connect Guesty, Hostaway, Hospitable, or Airbnb iCal alongside smart locks. Check-outs trigger photo-verified cleaning and inspection work orders automatically.",
+    impactMetrics: {
+      stat: "0 Missed",
+      label: "Same-day turnover SLAs",
+    },
+    features: [
+      "Real-time reservation check-in & check-out triggers",
+      "Mandatory R2 photo verification gates",
+      "Automated guest upsell payment & concierge dispatch",
+    ],
+    byocSupported: true,
+  },
 ];
 
 const impactStories = [
@@ -323,6 +351,24 @@ const impactStories = [
     mockMilestone: "Permits, Plumbing Rough-in & City Inspections",
     mockProject: "Mercer Hillside Build",
     mockStatus: "Notion Database Synchronized • 380ms",
+  },
+  {
+    id: "property-ops",
+    title: "Automated Property Care & Guest Upsells",
+    subtitle: "PMS Turnovers, R2 Photo Verification & Stripe Checkout",
+    statNumber: "+$245",
+    statBadge: "Avg. Stay Service Lift",
+    statDescription: "Eliminate manual turnover coordination while capturing new revenue from every reservation.",
+    bullets: [
+      "Back-to-back check-outs auto-dispatch cleaners with guided room-by-room photo checklists.",
+      "Flagged inspection defects immediately trigger Maintenance Hold and owner-billable repair costs.",
+      "Paid early check-in, pool heating, and concierge add-ons auto-create field fulfillment tasks.",
+    ],
+    mockBadge: "Property Care & Upsell Engine",
+    mockAmount: "$245.00 Paid",
+    mockMilestone: "Same-Day Turn + Early Check-In & Spa Heating",
+    mockProject: "PROP-101 • Oakridge Cliffside Villa",
+    mockStatus: "Verified Ready • Smart Lock 7842# Active",
   },
 ];
 
@@ -428,7 +474,13 @@ export function IntegrationsShowcase() {
                           : "text-stone-400 hover:text-white"
                       }`}
                     >
-                      {idx === 0 ? "Payment Velocity" : idx === 1 ? "AI Invoice Autopilot" : "Team & Notion Sync"}
+                      {idx === 0
+                        ? "Payment Velocity"
+                        : idx === 1
+                        ? "AI Invoice Autopilot"
+                        : idx === 2
+                        ? "Team & Notion Sync"
+                        : "Property Care & Upsells"}
                     </button>
                   ))}
                 </div>
@@ -561,7 +613,7 @@ export function IntegrationsShowcase() {
         </div>
 
         {/* Integration Cards Grid */}
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((item, index) => {
             const Icon = item.icon;
             return (
