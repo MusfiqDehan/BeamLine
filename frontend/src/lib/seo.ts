@@ -91,10 +91,10 @@ export async function resolveSeoContext(
     const platName = config?.platform_name || "BeamLine";
     const title =
       config?.site_title ||
-      `${platName} — Multi-Tenant Construction CRM & Autonomous Operations OS`;
+      `${platName} — Construction CRM, Property Operations & Hospitality Experience OS`;
     const description =
       config?.site_description ||
-      "White-labeled CRM, 4-phase project execution, autonomous invoice deduplication, and executive triage for high-value custom home builders.";
+      "White-labeled CRM, 4-phase project execution, photo-verified property turnovers, guest service upsells, and autonomous invoice deduplication.";
     const logoUrl =
       config?.logo_url || `${protocol}://${host}/icon.svg`;
     const ogImageUrl =
@@ -125,10 +125,10 @@ export async function resolveSeoContext(
       : "Custom Residential Builder");
   const title =
     tenant?.site_title ||
-    `${brandName} — Private Client Portal & Custom Residential Construction`;
+    `${brandName} — Client Portal, Project Delivery & Property Care`;
   const description =
     tenant?.site_description ||
-    `Follow every milestone, agreement, design selection, and site update from discovery to move-in day with ${brandName}.`;
+    `Follow every milestone, verified property care checklist, turnover readiness update, and service request with ${brandName}.`;
   const logoUrl =
     tenant?.logo_url || `${protocol}://${host}/icon.svg`;
   const ogImageUrl =
