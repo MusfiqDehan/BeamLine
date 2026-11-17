@@ -1,0 +1,179 @@
+{
+  "name": "BeamLine Property Operations & Experience — Turnover, Verification & Upsell Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "property-care-intake",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "p1c40001-2222-4444-8888-000000000001",
+      "name": "1. PMS Turnover / Inspection / Upsell Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "webhookId": "property-care-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json.body || $input.first().json || {};\nconst allowed = ['same_day_turnover', 'inspection_defect_escalation', 'guest_upsell_monetization'];\nconst scenario = allowed.includes(input.scenario) ? input.scenario : 'same_day_turnover';\nreturn [{\n  json: {\n    scenario,\n    guest_name: input.guest_name || 'VIP Hospitality Guest',\n    tenant_slug: input.tenant_slug || 'kevin',\n    payload: input\n  }\n}];"
+      },
+      "id": "p1c40001-2222-4444-8888-000000000002",
+      "name": "2. Pre-Check Event & Normalize Property Care Scenario",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://backend:8017/api/v1/property-ops/automate/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Tenant-Slug",
+              "value": "={{ $json.tenant_slug }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ scenario: $json.scenario, guest_name: $json.guest_name }) }}",
+        "options": {}
+      },
+      "id": "p1c40001-2222-4444-8888-000000000003",
+      "name": "3. Execute Property Operations & Verification Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-maintenance-hold",
+              "leftValue": "={{ $json.data?.status_outcome }}",
+              "rightValue": "FLAGGED_MAINTENANCE_HOLD",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "p1c40001-2222-4444-8888-000000000004",
+      "name": "4. Maintenance Hold / Defect Flagged?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json.data;\nreturn [{\n  json: {\n    status: 'FLAGGED_MAINTENANCE_HOLD',\n    summary: res.summary,\n    property_code: res.property?.code,\n    readiness_status: res.property?.readiness_status,\n    repair_work_order: res.work_order?.code,\n    linked_cost_ref: res.created_cost?.document_reference\n  }\n}];"
+      },
+      "id": "p1c40001-2222-4444-8888-000000000005",
+      "name": "5A. Escalated to Maintenance Hold & Owner Cost Capture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const res = $input.first().json.data;\nreturn [{\n  json: {\n    status: 'VERIFIED_OR_DISPATCHED_CLEANLY',\n    summary: res.summary,\n    property_code: res.property?.code,\n    readiness_status: res.property?.readiness_status,\n    work_order_code: res.work_order?.code,\n    upsell_revenue: res.upsell?.price || null\n  }\n}];"
+      },
+      "id": "p1c40001-2222-4444-8888-000000000006",
+      "name": "5B. Care Work Dispatched & Guest/Field Notified",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "1. PMS Turnover / Inspection / Upsell Webhook": {
+      "main": [
+        [
+          {
+            "node": "2. Pre-Check Event & Normalize Property Care Scenario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Pre-Check Event & Normalize Property Care Scenario": {
+      "main": [
+        [
+          {
+            "node": "3. Execute Property Operations & Verification Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Execute Property Operations & Verification Engine": {
+      "main": [
+        [
+          {
+            "node": "4. Maintenance Hold / Defect Flagged?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Maintenance Hold / Defect Flagged?": {
+      "main": [
+        [
+          {
+            "node": "5A. Escalated to Maintenance Hold & Owner Cost Capture",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "5B. Care Work Dispatched & Guest/Field Notified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "p1c40001-5678-4321-9999-000000000001",
+  "id": "beamline-property-care-turnover-automation"
+}
