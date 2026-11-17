@@ -58,8 +58,9 @@ import { MaterialsView } from "@/components/admin/views/MaterialsView";
 import { InvoicesView } from "@/components/admin/views/InvoicesView";
 import { SimulatorView } from "@/components/admin/views/SimulatorView";
 import { EmailActivityView } from "@/components/admin/views/EmailActivityView";
+import { PropertyOpsView, type PropertyOpsSubTab } from "@/components/admin/views/PropertyOpsView";
 
-export type AdminTab = "overview" | "crm" | "projects" | "automation";
+export type AdminTab = "overview" | "crm" | "projects" | "property_ops" | "automation";
 
 export function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
@@ -89,6 +90,7 @@ export function AdminDashboard() {
   const [selectedPipelineStage, setSelectedPipelineStage] = useState<string>("");
   const [selectedReviewFilter, setSelectedReviewFilter] = useState<string>("");
   const [projectSubTab, setProjectSubTab] = useState<"projects" | "tasks" | "materials">("projects");
+  const [propertyOpsSubTab, setPropertyOpsSubTab] = useState<PropertyOpsSubTab>("properties");
   const [invoiceSubTab, setInvoiceSubTab] = useState<"invoices" | "simulator" | "emails">("invoices");
 
   // Simulator state
@@ -182,11 +184,13 @@ export function AdminDashboard() {
           setActiveOrg(meRes.active_organization);
         }
       } else {
+        apiClient.clearAuth();
         setCurrentUser(null);
         setCurrentRole("Guest");
       }
     } catch (err) {
       console.warn("Could not load auth/me", err);
+      apiClient.clearAuth();
       setCurrentUser(null);
       setCurrentRole("Guest");
     } finally {
@@ -282,6 +286,7 @@ export function AdminDashboard() {
   const kevinReviewCount = kpis?.kevin_review_opportunities_count ?? 0;
   const flaggedCostsCount = kpis?.flagged_costs_count ?? 0;
   const activeProjectsCount = kpis?.active_projects_count ?? 0;
+  const activeWorkOrdersCount = kpis?.active_work_orders_count ?? 0;
 
   const isSuperadmin = Boolean(currentUser?.is_superuser || currentRole === "Superadmin");
   const showPublicSite = activeOrg?.feature_flags?.page_landing === true;
@@ -319,6 +324,12 @@ export function AdminDashboard() {
     ...(isFeatureEnabled("sub_projects_tasks") ? [{ id: "tasks" as const, label: "Tasks & milestones" }] : []),
     ...(isFeatureEnabled("sub_projects_materials") ? [{ id: "materials" as const, label: "Material orders" }] : []),
   ];
+  const propertyOpsTabs = [
+    ...(isFeatureEnabled("sub_property_properties") ? [{ id: "properties" as const, label: "Properties & readiness" }] : []),
+    ...(isFeatureEnabled("sub_property_checklists") ? [{ id: "checklists" as const, label: "Work & verification" }] : []),
+    ...(isFeatureEnabled("sub_property_turnovers") ? [{ id: "turnovers" as const, label: "Turnovers & stays" }] : []),
+    ...(isFeatureEnabled("sub_property_upsells") ? [{ id: "upsells" as const, label: "Guest upsells & revenue" }] : []),
+  ];
   const invoiceTabs = [
     ...(isFeatureEnabled("sub_automation_invoices") ? [{ id: "invoices" as const, label: "Supplier invoices" }] : []),
     ...(isFeatureEnabled("sub_automation_simulator") ? [{ id: "simulator" as const, label: "Margin shield simulator" }] : []),
@@ -327,6 +338,9 @@ export function AdminDashboard() {
 
   const activeCrmSubTab = crmTabs.some((t) => t.id === crmSubTab) ? crmSubTab : crmTabs[0]?.id;
   const activeProjectSubTab = projectTabs.some((t) => t.id === projectSubTab) ? projectSubTab : "projects";
+  const activePropertyOpsSubTab = propertyOpsTabs.some((t) => t.id === propertyOpsSubTab)
+    ? propertyOpsSubTab
+    : propertyOpsTabs[0]?.id;
   const activeInvoiceSubTab = invoiceTabs.some((t) => t.id === invoiceSubTab) ? invoiceSubTab : invoiceTabs[0]?.id;
 
   const navItems: Array<{
@@ -437,6 +451,70 @@ export function AdminDashboard() {
       ],
     },
     {
+      id: "property_ops",
+      label: "Property Care",
+      shortLabel: "Properties",
+      description: "Turnovers, QA & guest upsells",
+      icon: Building2,
+      badgeCount: activeWorkOrdersCount,
+      badgeTone: "amber",
+      children: [
+        ...(isFeatureEnabled("sub_property_properties")
+          ? [
+              {
+                id: "properties",
+                label: "Properties & Readiness",
+                active: activeTab === "property_ops" && activePropertyOpsSubTab === "properties",
+                onClick: () => {
+                  setActiveTab("property_ops");
+                  setPropertyOpsSubTab("properties");
+                },
+              },
+            ]
+          : []),
+        ...(isFeatureEnabled("sub_property_checklists")
+          ? [
+              {
+                id: "checklists",
+                label: "Work & Verification",
+                active: activeTab === "property_ops" && activePropertyOpsSubTab === "checklists",
+                onClick: () => {
+                  setActiveTab("property_ops");
+                  setPropertyOpsSubTab("checklists");
+                },
+                badgeCount: activeWorkOrdersCount > 0 ? activeWorkOrdersCount : undefined,
+              },
+            ]
+          : []),
+        ...(isFeatureEnabled("sub_property_turnovers")
+          ? [
+              {
+                id: "turnovers",
+                label: "Turnovers & Stays",
+                active: activeTab === "property_ops" && activePropertyOpsSubTab === "turnovers",
+                onClick: () => {
+                  setActiveTab("property_ops");
+                  setPropertyOpsSubTab("turnovers");
+                },
+              },
+            ]
+          : []),
+        ...(isFeatureEnabled("sub_property_upsells")
+          ? [
+              {
+                id: "upsells",
+                label: "Guest Upsells & Revenue",
+                active: activeTab === "property_ops" && activePropertyOpsSubTab === "upsells",
+                onClick: () => {
+                  setActiveTab("property_ops");
+                  setPropertyOpsSubTab("upsells");
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    {
       id: "automation",
       label: "Invoices & Bills",
       shortLabel: "Invoices",
@@ -500,6 +578,7 @@ export function AdminDashboard() {
     if (item.id === "overview") return activeOrg.feature_flags.page_overview !== false;
     if (item.id === "crm") return activeOrg.feature_flags.page_crm !== false;
     if (item.id === "projects") return activeOrg.feature_flags.page_projects !== false;
+    if (item.id === "property_ops") return activeOrg.feature_flags.page_property_ops !== false;
     if (item.id === "automation") return activeOrg.feature_flags.page_automation !== false;
     return true;
   });
@@ -669,6 +748,25 @@ export function AdminDashboard() {
           : activeProjectSubTab === "materials"
           ? "Material Orders"
           : "Job Sites",
+    },
+    property_ops: {
+      title: "Property Operations & Experience",
+      subtitle:
+        activePropertyOpsSubTab === "checklists"
+          ? "Coordinate field staff, enforce visual R2 proof-of-work, and auto-escalate defects"
+          : activePropertyOpsSubTab === "turnovers"
+          ? "Reservation schedules, same-day turn SLAs, and automated cleaner dispatch"
+          : activePropertyOpsSubTab === "upsells"
+          ? "Monetize guest add-ons, concierge services, and automatic care fulfillment"
+          : "Hospitality readiness board, smart-lock pins, and post-build estate handoffs",
+      subLabel:
+        activePropertyOpsSubTab === "checklists"
+          ? "Work & Verification"
+          : activePropertyOpsSubTab === "turnovers"
+          ? "Turnovers & Stays"
+          : activePropertyOpsSubTab === "upsells"
+          ? "Guest Upsells & Revenue"
+          : "Properties & Readiness",
     },
     automation: {
       title: "Subcontractor Invoices & Costs",
@@ -1080,7 +1178,44 @@ export function AdminDashboard() {
               )}
 
               {/* ======================================================== */}
-              {/* TAB 4: INVOICE AUTOMATION                                 */}
+              {/* TAB 4: PROPERTY OPERATIONS & EXPERIENCE                  */}
+              {/* ======================================================== */}
+              {activeTab === "property_ops" && (
+                <div className="space-y-6">
+                  <SectionIntro
+                    title="Property operations & hospitality experience"
+                    description="Coordinate turnovers, verify room-by-room visual checklists, and boost guest service revenue."
+                    action={
+                      propertyOpsTabs.length > 1 ? (
+                        <Tabs
+                          size="sm"
+                          ariaLabel="Property care views"
+                          tabs={propertyOpsTabs}
+                          value={activePropertyOpsSubTab ?? "properties"}
+                          onChange={setPropertyOpsSubTab}
+                        />
+                      ) : undefined
+                    }
+                  />
+
+                  {propertyOpsTabs.length === 0 ? (
+                    <div className="card px-6 py-12 text-center text-sm text-stone-500 dark:text-stone-400">
+                      Property Care modules are not enabled for this workspace.
+                    </div>
+                  ) : (
+                    <PropertyOpsView
+                      subTab={activePropertyOpsSubTab ?? "properties"}
+                      summary={summary}
+                      refreshCounter={refreshCounter}
+                      onRefresh={() => setRefreshCounter((c) => c + 1)}
+                      showToast={showToast}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* ======================================================== */}
+              {/* TAB 5: INVOICE AUTOMATION                                 */}
               {/* ======================================================== */}
               {activeTab === "automation" && (
                 <div className="space-y-6">
@@ -1179,6 +1314,9 @@ export function AdminDashboard() {
                         }
                         if (item.id === "projects" && !projectTabs.some((t) => t.id === projectSubTab)) {
                           setProjectSubTab("projects");
+                        }
+                        if (item.id === "property_ops" && !propertyOpsTabs.some((t) => t.id === propertyOpsSubTab)) {
+                          setPropertyOpsSubTab("properties");
                         }
                         if (item.id === "automation" && !invoiceTabs.some((t) => t.id === invoiceSubTab)) {
                           setInvoiceSubTab("invoices");
@@ -1310,7 +1448,9 @@ export function AdminDashboard() {
       >
         <div
           className={`mx-auto grid h-16 max-w-lg px-2 ${
-            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][Math.max(0, filteredNavItems.length - 1)]
+            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4", "grid-cols-5"][
+              Math.max(0, Math.min(4, filteredNavItems.length - 1))
+            ]
           }`}
         >
           {filteredNavItems.map((item) => {

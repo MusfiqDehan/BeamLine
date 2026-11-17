@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import django_filters
 from crm.models import (
+    ChecklistTemplate,
     ConstructionProject,
     Contact,
     EmailCommunicationLog,
+    GuestServiceUpsell,
     MaterialOrder,
     Opportunity,
     ProjectCost,
     ProjectTask,
+    PropertyProfile,
+    PropertyWorkOrder,
+    ReservationTurn,
     SalesActivity,
 )
 
@@ -112,4 +117,52 @@ class EmailCommunicationLogFilterSet(django_filters.FilterSet):
     class Meta:
         model = EmailCommunicationLog
         fields = ["direction", "status", "related_cost", "subject", "sender", "recipient"]
+
+
+class PropertyProfileFilterSet(django_filters.FilterSet):
+    property_type = django_filters.CharFilter(field_name="property_type", lookup_expr="exact")
+    readiness_status = django_filters.CharFilter(field_name="readiness_status", lookup_expr="exact")
+
+    class Meta:
+        model = PropertyProfile
+        fields = ["property_type", "readiness_status", "source_project", "owner_contact", "code"]
+
+
+class ChecklistTemplateFilterSet(django_filters.FilterSet):
+    category = django_filters.CharFilter(field_name="category", lookup_expr="exact")
+
+    class Meta:
+        model = ChecklistTemplate
+        fields = ["category", "requires_supervisor_signoff"]
+
+
+class ReservationTurnFilterSet(django_filters.FilterSet):
+    channel = django_filters.CharFilter(field_name="channel", lookup_expr="exact")
+    stay_status = django_filters.CharFilter(field_name="stay_status", lookup_expr="exact")
+    is_same_day_turn = django_filters.BooleanFilter(field_name="is_same_day_turn")
+
+    class Meta:
+        model = ReservationTurn
+        fields = ["property_profile", "channel", "stay_status", "is_same_day_turn"]
+
+
+class PropertyWorkOrderFilterSet(django_filters.FilterSet):
+    work_type = django_filters.CharFilter(field_name="work_type", lookup_expr="exact")
+    priority = django_filters.CharFilter(field_name="priority", lookup_expr="exact")
+    status = django_filters.CharFilter(field_name="status", lookup_expr="exact")
+    billable_to = django_filters.CharFilter(field_name="billable_to", lookup_expr="exact")
+
+    class Meta:
+        model = PropertyWorkOrder
+        fields = ["property_profile", "reservation", "work_type", "priority", "status", "billable_to"]
+
+
+class GuestServiceUpsellFilterSet(django_filters.FilterSet):
+    category = django_filters.CharFilter(field_name="category", lookup_expr="exact")
+    status = django_filters.CharFilter(field_name="status", lookup_expr="exact")
+
+    class Meta:
+        model = GuestServiceUpsell
+        fields = ["property_profile", "reservation", "category", "status"]
+
 

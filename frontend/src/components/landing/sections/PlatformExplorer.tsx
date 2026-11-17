@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, type CSSProperties, type JSX } from "react";
-import { AlertTriangle, ArrowRight, Check, FileText, Mail, ScanLine, ShieldCheck } from "lucide-react";
+import { AlertTriangle, ArrowRight, Camera, Check, FileText, Mail, ScanLine, ShieldCheck, Sparkles } from "lucide-react";
 import { explorerTabs, type ExplorerTab } from "../data";
 import { useInView, usePrefersReducedMotion } from "../hooks";
 import { Reveal, SectionHeading } from "../Reveal";
@@ -132,9 +132,51 @@ function InsightsMock() {
   );
 }
 
+function PropertyOpsMock() {
+  const steps = [
+    ["Entry & Smart Lock", "Verified · PIN 7842#", true],
+    ["Kitchen & Staging", "Photo Proof Attached", true],
+    ["Guest Upsell: +2h Early Check-In", "Paid $225 · Dispatched", true],
+  ] as const;
+  return (
+    <div className="space-y-4 rounded-2xl bg-white/5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-mono text-xs font-bold text-amber-300">PROP-101 · SAME-DAY TURN</p>
+          <p className="text-lg font-black text-white">Oakridge Cliffside Villa</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-bold text-emerald-300">
+          <ShieldCheck className="size-3.5" aria-hidden="true" />
+          Verified Ready
+        </span>
+      </div>
+      <div className="space-y-2.5">
+        {steps.map(([label, detail], index) => (
+          <div
+            key={label}
+            className="animate-panel-in flex items-center justify-between rounded-xl border border-white/10 bg-stone-900 px-3.5 py-2.5"
+            style={{ animationDelay: `${index * 120}ms` }}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-400/15 text-amber-300">
+                {index === 2 ? <Sparkles className="size-3.5" /> : <Camera className="size-3.5" />}
+              </span>
+              <span className="truncate text-xs font-bold text-white">{label}</span>
+            </div>
+            <span className="ml-2 shrink-0 font-mono text-[11px] font-semibold text-emerald-300">
+              {detail}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const mocks: Record<ExplorerTab["id"], () => JSX.Element> = {
   sales: SalesMock,
   projects: ProjectsMock,
+  property_ops: PropertyOpsMock,
   invoices: InvoicesMock,
   insights: InsightsMock,
 };
@@ -161,16 +203,16 @@ export function PlatformExplorer() {
     <section id="platform" className="relative overflow-hidden bg-stone-950 py-24 text-white sm:py-32">
       <div aria-hidden="true" className="absolute left-1/2 top-0 h-[32rem] w-[64rem] -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl" />
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <SectionHeading
+          <SectionHeading
           tone="dark"
           align="center"
           eyebrow="One connected platform"
-          title="Your whole operation, from first call to final invoice."
-          description="Explore how BeamLine connects the commercial, operational, and financial sides of building."
+          title="Your whole operation, from first call to verified property care."
+          description="Explore how BeamLine unites sales, construction delivery, property turnovers & guest upsells, and invoice automation."
         />
 
         <div ref={ref} onPointerEnter={() => setPaused(true)} onPointerLeave={() => setPaused(false)} className="mt-14">
-          <div role="tablist" aria-label="Platform areas" className="mx-auto grid max-w-4xl grid-cols-2 gap-2 sm:grid-cols-4">
+          <div role="tablist" aria-label="Platform areas" className="mx-auto grid max-w-5xl grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {explorerTabs.map((tab, index) => {
               const selected = index === activeIndex;
               const Icon = tab.icon;

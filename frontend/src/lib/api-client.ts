@@ -1,4 +1,60 @@
-import type { ApiEnvelope, CursorPaginatedData } from "./types";
+import type { ApiEnvelope, AuthTokens, CursorPaginatedData } from "./types";
+
+const ACCESS_TOKEN_KEY = "beamline_access_token";
+const REFRESH_TOKEN_KEY = "beamline_refresh_token";
+const AUTH_META_KEY = "beamline_auth_meta";
+const REMEMBERED_CREDS_KEY = "beamline_remembered_credentials";
+const TENANT_SLUG_KEY = "beamline_tenant_slug";
+
+const PUBLIC_AUTH_PATHS = new Set([
+  "/auth/login",
+  "/auth/register",
+  "/auth/google",
+  "/auth/refresh",
+  "/auth/oauth-config",
+  "/invitations/accept",
+]);
+
+export interface RememberedCredentials {
+  loginId: string;
+  password?: string;
+  durationDays: number;
+  expiresAt: number;
+}
+
+interface StoredAuthMeta {
+  rememberMe: boolean;
+  durationDays: number;
+  refreshExpiresAt: number;
+  updatedAt: number;
+}
+
+function decodeBase64Url(segment: string): string {
+  const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  if (typeof atob === "function") {
+    return atob(padded);
+  }
+  return Buffer.from(padded, "base64").toString("utf-8");
+}
+
+export function isJwtExpired(token: string, bufferSeconds = 30): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(decodeBase64Url(parts[1])) as { exp?: number };
+    if (typeof payload.exp !== "number") return false;
+    return Date.now() / 1000 + bufferSeconds >= payload.exp;
+  } catch {
+    return true;
+  }
+}
+
+function isPublicAuthEndpoint(endpoint: string): boolean {
+  const cleanPath = endpoint.split("?")[0].replace(/\/+$/, "");
+  const normalized = cleanPath.startsWith("/") ? cleanPath : `/${cleanPath}`;
+  return PUBLIC_AUTH_PATHS.has(normalized);
+}
 
 export class ApiError extends Error {
   public readonly statusCode: number;
@@ -18,6 +74,7 @@ export class ApiError extends Error {
 
 export class ApiClient {
   private readonly baseUrl: string;
+  private refreshPromise: Promise<string | null> | null = null;
 
   constructor(baseUrl?: string) {
     this.baseUrl =
@@ -73,26 +130,123 @@ export class ApiClient {
   public setAuthToken(token: string | null) {
     if (typeof window !== "undefined") {
       if (token) {
-        localStorage.setItem("beamline_access_token", token);
+        localStorage.setItem(ACCESS_TOKEN_KEY, token);
       } else {
-        localStorage.removeItem("beamline_access_token");
+        localStorage.removeItem(ACCESS_TOKEN_KEY);
       }
+    }
+  }
+
+  public setAuthTokens(
+    tokens: AuthTokens,
+    options?: { rememberMe?: boolean; durationDays?: number }
+  ) {
+    if (typeof window === "undefined") return;
+    if (tokens.access_token) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, tokens.access_token);
+    }
+    if (tokens.refresh_token) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refresh_token);
+    }
+    const existingMeta = this.getAuthMeta();
+    const rememberMe =
+      options?.rememberMe ?? tokens.remember_me ?? existingMeta?.rememberMe ?? false;
+    const durationDays =
+      options?.durationDays ??
+      tokens.remember_me_duration_days ??
+      existingMeta?.durationDays ??
+      30;
+    const refreshExpiresAt = tokens.refresh_expires_at
+      ? tokens.refresh_expires_at * 1000
+      : Date.now() + (tokens.refresh_expires_in || 60 * 60 * 24 * durationDays) * 1000;
+
+    const meta: StoredAuthMeta = {
+      rememberMe,
+      durationDays,
+      refreshExpiresAt,
+      updatedAt: Date.now(),
+    };
+    localStorage.setItem(AUTH_META_KEY, JSON.stringify(meta));
+  }
+
+  private getAuthMeta(): StoredAuthMeta | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(AUTH_META_KEY);
+      return raw ? (JSON.parse(raw) as StoredAuthMeta) : null;
+    } catch {
+      return null;
     }
   }
 
   public getAuthToken(): string | null {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("beamline_access_token");
+      return localStorage.getItem(ACCESS_TOKEN_KEY);
     }
     return null;
+  }
+
+  public getRefreshToken(): string | null {
+    if (typeof window === "undefined") return null;
+    const meta = this.getAuthMeta();
+    if (meta?.refreshExpiresAt && Date.now() > meta.refreshExpiresAt) {
+      this.clearAuth();
+      return null;
+    }
+    const rt = localStorage.getItem(REFRESH_TOKEN_KEY);
+    if (!rt) return null;
+    if (isJwtExpired(rt, 5)) {
+      this.clearAuth();
+      return null;
+    }
+    return rt;
+  }
+
+  public setRememberedCredentials(
+    loginId: string,
+    password: string,
+    durationDays: number
+  ) {
+    if (typeof window === "undefined") return;
+    const safeDays = Math.max(1, Math.min(365, durationDays || 30));
+    const record: RememberedCredentials = {
+      loginId,
+      password,
+      durationDays: safeDays,
+      expiresAt: Date.now() + safeDays * 86400 * 1000,
+    };
+    localStorage.setItem(REMEMBERED_CREDS_KEY, JSON.stringify(record));
+  }
+
+  public getRememberedCredentials(): RememberedCredentials | null {
+    if (typeof window === "undefined") return null;
+    try {
+      const raw = localStorage.getItem(REMEMBERED_CREDS_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as RememberedCredentials;
+      if (!parsed?.loginId || (parsed.expiresAt && Date.now() > parsed.expiresAt)) {
+        localStorage.removeItem(REMEMBERED_CREDS_KEY);
+        return null;
+      }
+      return parsed;
+    } catch {
+      localStorage.removeItem(REMEMBERED_CREDS_KEY);
+      return null;
+    }
+  }
+
+  public clearRememberedCredentials() {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(REMEMBERED_CREDS_KEY);
+    }
   }
 
   public setTenantSlug(slug: string | null) {
     if (typeof window !== "undefined") {
       if (slug) {
-        localStorage.setItem("beamline_tenant_slug", slug);
+        localStorage.setItem(TENANT_SLUG_KEY, slug);
       } else {
-        localStorage.removeItem("beamline_tenant_slug");
+        localStorage.removeItem(TENANT_SLUG_KEY);
       }
     }
   }
@@ -114,7 +268,7 @@ export class ApiClient {
       // When inside /admin, use the authenticated user's active tenant slug
       const pathname = window.location.pathname;
       if (pathname.startsWith("/admin")) {
-        const stored = localStorage.getItem("beamline_tenant_slug");
+        const stored = localStorage.getItem(TENANT_SLUG_KEY);
         if (stored) return stored;
       }
     }
@@ -123,24 +277,128 @@ export class ApiClient {
 
   public clearAuth() {
     this.setAuthToken(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_META_KEY);
+    }
   }
 
-  public async request<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    params?: Record<string, string | number | boolean | undefined | null>
-  ): Promise<ApiEnvelope<T>> {
-    const url = this.buildUrl(endpoint, params);
-    const token = this.getAuthToken();
-    const tenantSlug = this.getTenantSlug();
+  public async refreshAccessToken(): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
 
-    const headers: Record<string, string> = {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) {
+      this.clearAuth();
+      return null;
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const tenantSlug = this.getTenantSlug();
+        const url = this.buildUrl("/auth/refresh/");
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug } : {}),
+          },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+          cache: "no-store",
+        });
+
+        const rawText = await resp.text();
+        let json: ApiEnvelope<{ tokens?: AuthTokens }> | null = null;
+        if (rawText && rawText.trim().length > 0) {
+          try {
+            json = JSON.parse(rawText) as ApiEnvelope<{ tokens?: AuthTokens }>;
+          } catch {
+            json = null;
+          }
+        }
+
+        if (resp.ok && json?.success && json.data?.tokens?.access_token) {
+          this.setAuthTokens(json.data.tokens);
+          return json.data.tokens.access_token;
+        }
+        this.clearAuth();
+        return null;
+      } catch {
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return this.refreshPromise;
+  }
+
+  private async resolveRequestToken(isPublicAuth: boolean): Promise<string | null> {
+    if (isPublicAuth) return null;
+    const token = this.getAuthToken();
+    if (token && !isJwtExpired(token, 30)) {
+      return token;
+    }
+    if (this.getRefreshToken()) {
+      return this.refreshAccessToken();
+    }
+    if (token) {
+      this.clearAuth();
+    }
+    return null;
+  }
+
+  private buildHeaders(
+    token: string | null,
+    tenantSlug: string | null,
+    includeJsonContentType: boolean,
+    extraHeaders?: HeadersInit
+  ): Record<string, string> {
+    return {
       Accept: "application/json",
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug } : {}),
-      ...((options.headers as Record<string, string>) || {}),
+      ...((extraHeaders as Record<string, string>) || {}),
     };
+  }
+
+  private shouldRetryWithRefresh(
+    statusCode: number,
+    errorMsg: string,
+    isPublicAuth: boolean,
+    hasRetried: boolean
+  ): boolean {
+    if (isPublicAuth || hasRetried) return false;
+    return (
+      statusCode === 401 ||
+      (statusCode === 403 &&
+        /expired|invalid token|not authenticated/i.test(errorMsg))
+    );
+  }
+
+  private async performFetchAndParse<T>(
+    url: string,
+    options: RequestInit,
+    endpoint: string,
+    includeJsonContentType: boolean,
+    extraHeaders?: HeadersInit,
+    hasRetried = false
+  ): Promise<ApiEnvelope<T>> {
+    const isPublicAuth = isPublicAuthEndpoint(endpoint);
+    const tenantSlug = this.getTenantSlug();
+    const token = hasRetried
+      ? this.getAuthToken()
+      : await this.resolveRequestToken(isPublicAuth);
+    const headers = this.buildHeaders(
+      token,
+      tenantSlug,
+      includeJsonContentType,
+      extraHeaders
+    );
 
     let response: Response;
     try {
@@ -152,7 +410,12 @@ export class ApiClient {
     } catch (networkErr) {
       const msg =
         networkErr instanceof Error ? networkErr.message : "Network error";
-      throw new ApiError(`Network error connecting to API: ${msg}`, 0);
+      throw new ApiError(
+        includeJsonContentType
+          ? `Network error connecting to API: ${msg}`
+          : `Network error uploading file: ${msg}`,
+        0
+      );
     }
 
     const rawText = await response.text();
@@ -178,13 +441,45 @@ export class ApiClient {
       });
 
       const fallbackMsg = !response.ok
-        ? `Request failed with status ${response.status} (${response.statusText || "Server Response"})`
+        ? includeJsonContentType
+          ? `Request failed with status ${response.status} (${response.statusText || "Server Response"})`
+          : `Upload failed with status ${response.status}`
         : "The server returned an invalid or unparseable response.";
       const errorMsg = json?.message || fallbackMsg;
+
+      if (this.shouldRetryWithRefresh(response.status, errorMsg, isPublicAuth, hasRetried)) {
+        const refreshedToken = await this.refreshAccessToken();
+        if (refreshedToken) {
+          return this.performFetchAndParse<T>(
+            url,
+            options,
+            endpoint,
+            includeJsonContentType,
+            extraHeaders,
+            true
+          );
+        }
+        this.clearAuth();
+      }
 
       throw new ApiError(errorMsg, response.status, fieldErrors);
     }
     return json;
+  }
+
+  public async request<T>(
+    endpoint: string,
+    options: RequestInit = {},
+    params?: Record<string, string | number | boolean | undefined | null>
+  ): Promise<ApiEnvelope<T>> {
+    const url = this.buildUrl(endpoint, params);
+    return this.performFetchAndParse<T>(
+      url,
+      options,
+      endpoint,
+      Boolean(options.body),
+      options.headers
+    );
   }
 
   public async listPaginated<T>(
@@ -239,45 +534,15 @@ export class ApiClient {
     formData: FormData
   ): Promise<ApiEnvelope<T>> {
     const url = this.buildUrl(endpoint);
-    const token = this.getAuthToken();
-    const tenantSlug = this.getTenantSlug();
-
-    const headers: Record<string, string> = {
-      Accept: "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(tenantSlug ? { "X-Tenant-Slug": tenantSlug } : {}),
-    };
-
-    let response: Response;
-    try {
-      response = await fetch(url, {
+    return this.performFetchAndParse<T>(
+      url,
+      {
         method: "POST",
-        headers,
         body: formData,
-        cache: "no-store",
-      });
-    } catch (networkErr) {
-      const msg = networkErr instanceof Error ? networkErr.message : "Network error";
-      throw new ApiError(`Network error uploading file: ${msg}`, 0);
-    }
-
-    const rawText = await response.text();
-    let json: ApiEnvelope<T> | null = null;
-    if (rawText && rawText.trim().length > 0) {
-      try {
-        json = JSON.parse(rawText) as ApiEnvelope<T>;
-      } catch {
-        json = null;
-      }
-    }
-
-    if (!response.ok || !json || json.success === false) {
-      const fallbackMsg = !response.ok
-        ? `Upload failed with status ${response.status}`
-        : "Server returned an invalid response.";
-      throw new ApiError(json?.message || fallbackMsg, response.status);
-    }
-    return json;
+      },
+      endpoint,
+      false
+    );
   }
 }
 

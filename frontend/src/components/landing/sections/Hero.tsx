@@ -67,13 +67,13 @@ export function Hero() {
             style={{ "--intro-delay": "320ms" } as CSSProperties}
           >
             <Sparkles className="size-3.5" aria-hidden="true" />
-            The multi-tenant operating system for builders
+            The operating system for builders &amp; property operators
           </div>
 
           <h1
             style={{ "--intro-delay": "420ms" } as CSSProperties}
             className="intro-rise mt-7 text-balance text-[2.6rem] font-black leading-[0.98] tracking-tight sm:text-6xl lg:text-7xl">
-            Every builder deserves a{" "}
+            Every operator deserves a{" "}
             <span className="relative inline-block whitespace-nowrap">
               <span
                 key={wordIndex}
@@ -89,7 +89,7 @@ export function Hero() {
             className="intro-rise mt-7 max-w-xl text-pretty text-lg leading-8 text-stone-300"
             style={{ "--intro-delay": "540ms" } as CSSProperties}
           >
-            Purpose-built for luxury residential builders. BeamLine unites your CRM, project delivery, and invoice automation in a private, branded workspace — so your team builds more and chases less.
+            Purpose-built for custom home builders, hospitality operators, and short-term rental managers. BeamLine unites your CRM, project delivery, verified property care &amp; turnovers, guest upsells, and invoice automation in one branded workspace.
           </p>
 
           {/* Interactive subdomain preview */}

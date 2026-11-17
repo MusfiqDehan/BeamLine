@@ -4,13 +4,18 @@ import re
 from decimal import Decimal
 from rest_framework import serializers
 from crm.models import (
+    ChecklistTemplate,
     ConstructionProject,
     Contact,
     EmailCommunicationLog,
+    GuestServiceUpsell,
     MaterialOrder,
     Opportunity,
     ProjectCost,
     ProjectTask,
+    PropertyProfile,
+    PropertyWorkOrder,
+    ReservationTurn,
     SalesActivity,
 )
 
@@ -553,8 +558,25 @@ class PlatformSettingsSerializer(serializers.ModelSerializer):
             "logo_url",
             "social_cover_url",
             "allow_self_registration",
+            "remember_me_enabled",
+            "remember_me_duration_days",
+            "access_token_lifetime_minutes",
             "updated_at",
         ]
+
+    def validate_remember_me_duration_days(self, value: int) -> int:
+        if not (1 <= value <= 365):
+            raise serializers.ValidationError(
+                "Remember Me duration must be between 1 and 365 days."
+            )
+        return value
+
+    def validate_access_token_lifetime_minutes(self, value: int) -> int:
+        if not (5 <= value <= 43200):
+            raise serializers.ValidationError(
+                "Access token lifetime must be between 5 and 43200 minutes."
+            )
+        return value
 
 
 class OrganizationSerializer(serializers.ModelSerializer):
@@ -680,11 +702,13 @@ class InvitationSerializer(serializers.ModelSerializer):
 class GoogleAuthRequestSerializer(serializers.Serializer):
     id_token = serializers.CharField(required=True)
     invitation_token = serializers.CharField(required=False, allow_blank=True, default="")
+    remember_me = serializers.BooleanField(required=False, default=False)
 
 
 class LoginRequestSerializer(serializers.Serializer):
     username_or_email = serializers.CharField(required=True)
     password = serializers.CharField(required=True)
+    remember_me = serializers.BooleanField(required=False, default=False)
 
 
 class RegisterRequestSerializer(serializers.Serializer):
@@ -694,6 +718,11 @@ class RegisterRequestSerializer(serializers.Serializer):
     username = serializers.CharField(required=False, allow_blank=True, default="")
     organization_name = serializers.CharField(required=False, allow_blank=True, default="")
     organization_slug = serializers.CharField(required=False, allow_blank=True, default="")
+    remember_me = serializers.BooleanField(required=False, default=False)
+
+
+class RefreshTokenRequestSerializer(serializers.Serializer):
+    refresh_token = serializers.CharField(required=True)
 
 
 class ClientSubscriptionSerializer(serializers.ModelSerializer):
@@ -788,6 +817,388 @@ class PlatformUserDirectorySerializer(serializers.Serializer):
     organization = serializers.CharField(allow_null=True)
     organization_name = serializers.CharField(allow_null=True)
     role = serializers.CharField()
+
+
+class ChecklistTemplateSerializer(serializers.ModelSerializer):
+    items_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ChecklistTemplate
+        fields = [
+            "id",
+            "name",
+            "category",
+            "description",
+            "estimated_duration_minutes",
+            "requires_supervisor_signoff",
+            "items_schema",
+            "items_count",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "items_count", "created_at", "updated_at"]
+
+    def get_items_count(self, obj: ChecklistTemplate) -> int:
+        return len(obj.items_schema or [])
+
+
+class PropertyProfileSerializer(serializers.ModelSerializer):
+    owner_contact = serializers.PrimaryKeyRelatedField(
+        queryset=Contact.objects.all(), required=False, allow_null=True
+    )
+    source_project = serializers.PrimaryKeyRelatedField(
+        queryset=ConstructionProject.objects.all(), required=False, allow_null=True
+    )
+    owner_contact_name = serializers.CharField(
+        source="owner_contact.name", read_only=True, default=""
+    )
+    source_project_code = serializers.CharField(
+        source="source_project.code", read_only=True, default=""
+    )
+    source_project_name = serializers.CharField(
+        source="source_project.name", read_only=True, default=""
+    )
+    work_orders_count = serializers.IntegerField(source="work_orders.count", read_only=True)
+    open_work_orders_count = serializers.SerializerMethodField()
+    reservations_count = serializers.IntegerField(source="reservations.count", read_only=True)
+    upsells_revenue_total = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PropertyProfile
+        fields = [
+            "id",
+            "code",
+            "name",
+            "property_type",
+            "readiness_status",
+            "address",
+            "bedrooms",
+            "bathrooms",
+            "max_guests",
+            "nightly_rate",
+            "management_fee_percent",
+            "smart_lock_code",
+            "wifi_network",
+            "access_instructions",
+            "owner_contact",
+            "owner_contact_name",
+            "source_project",
+            "source_project_code",
+            "source_project_name",
+            "default_cleaner",
+            "default_inspector",
+            "supplies_status",
+            "last_verified_at",
+            "latest_operational_note",
+            "work_orders_count",
+            "open_work_orders_count",
+            "reservations_count",
+            "upsells_revenue_total",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "owner_contact_name",
+            "source_project_code",
+            "source_project_name",
+            "work_orders_count",
+            "open_work_orders_count",
+            "reservations_count",
+            "upsells_revenue_total",
+            "created_at",
+            "updated_at",
+        ]
+        extra_kwargs = {
+            "code": {"required": False, "allow_blank": True},
+        }
+
+    def get_open_work_orders_count(self, obj: PropertyProfile) -> int:
+        return obj.work_orders.exclude(
+            status=PropertyWorkOrder.WorkStatus.VERIFIED_COMPLETE
+        ).count()
+
+    def get_upsells_revenue_total(self, obj: PropertyProfile) -> str:
+        paid_upsells = obj.upsells.filter(
+            status__in=[
+                GuestServiceUpsell.UpsellStatus.PAID_SCHEDULED,
+                GuestServiceUpsell.UpsellStatus.FULFILLED,
+            ]
+        )
+        total = sum((u.price for u in paid_upsells), Decimal("0.00"))
+        return str(total)
+
+    def validate(self, attrs):
+        import uuid
+        from common.middleware import get_current_tenant
+
+        request = self.context.get("request")
+        org = (
+            getattr(request, "tenant", None)
+            or get_current_tenant()
+            or getattr(self.instance, "organization", None)
+        )
+        raw_code = attrs.get("code")
+        if raw_code is not None:
+            cleaned = raw_code.strip().upper()
+            if not cleaned:
+                cleaned = f"PROP-{uuid.uuid4().hex[:5].upper()}"
+            attrs["code"] = cleaned
+        elif not self.instance:
+            attrs["code"] = f"PROP-{uuid.uuid4().hex[:5].upper()}"
+
+        check_code = attrs.get("code") or getattr(self.instance, "code", None)
+        if check_code and org:
+            qs = PropertyProfile.all_objects.filter(organization=org, code__iexact=check_code)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"code": f"A property with code '{check_code}' already exists in this workspace."}
+                )
+        return attrs
+
+
+class ReservationTurnSerializer(serializers.ModelSerializer):
+    property_profile = serializers.PrimaryKeyRelatedField(
+        queryset=PropertyProfile.objects.all()
+    )
+    property_name = serializers.CharField(source="property_profile.name", read_only=True)
+    property_code = serializers.CharField(source="property_profile.code", read_only=True)
+    work_orders_count = serializers.IntegerField(source="work_orders.count", read_only=True)
+    auto_schedule_turnover = serializers.BooleanField(
+        write_only=True, required=False, default=True
+    )
+
+    class Meta:
+        model = ReservationTurn
+        fields = [
+            "id",
+            "property_profile",
+            "property_name",
+            "property_code",
+            "confirmation_code",
+            "guest_name",
+            "guest_email",
+            "guest_phone",
+            "guests_count",
+            "channel",
+            "stay_status",
+            "check_in_at",
+            "check_out_at",
+            "next_guest_check_in_at",
+            "is_same_day_turn",
+            "reservation_total",
+            "special_requests",
+            "work_orders_count",
+            "auto_schedule_turnover",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "property_name",
+            "property_code",
+            "work_orders_count",
+            "created_at",
+            "updated_at",
+        ]
+        extra_kwargs = {
+            "confirmation_code": {"required": False, "allow_blank": True},
+        }
+
+    def validate(self, attrs):
+        import uuid
+
+        if not attrs.get("confirmation_code") and not self.instance:
+            attrs["confirmation_code"] = f"RES-{uuid.uuid4().hex[:6].upper()}"
+        check_in = attrs.get("check_in_at", getattr(self.instance, "check_in_at", None))
+        check_out = attrs.get("check_out_at", getattr(self.instance, "check_out_at", None))
+        if check_in and check_out and check_out < check_in:
+            raise serializers.ValidationError(
+                {"check_out_at": "Check-out timestamp cannot be earlier than check-in timestamp."}
+            )
+        return attrs
+
+    def create(self, validated_data):
+        auto_schedule = validated_data.pop("auto_schedule_turnover", True)
+        instance = super().create(validated_data)
+        if auto_schedule:
+            from crm.services.property_ops_processor import PropertyOperationsEngine
+
+            PropertyOperationsEngine.schedule_turnover_for_reservation(instance)
+        return instance
+
+
+class PropertyWorkOrderSerializer(serializers.ModelSerializer):
+    property_profile = serializers.PrimaryKeyRelatedField(
+        queryset=PropertyProfile.objects.all()
+    )
+    reservation = serializers.PrimaryKeyRelatedField(
+        queryset=ReservationTurn.objects.all(), required=False, allow_null=True
+    )
+    template = serializers.PrimaryKeyRelatedField(
+        queryset=ChecklistTemplate.objects.all(), required=False, allow_null=True
+    )
+    property_name = serializers.CharField(source="property_profile.name", read_only=True)
+    property_code = serializers.CharField(source="property_profile.code", read_only=True)
+    property_readiness = serializers.CharField(
+        source="property_profile.readiness_status", read_only=True
+    )
+    reservation_code = serializers.CharField(
+        source="reservation.confirmation_code", read_only=True, default=""
+    )
+    guest_name = serializers.CharField(
+        source="reservation.guest_name", read_only=True, default=""
+    )
+    template_name = serializers.CharField(source="template.name", read_only=True, default="")
+    linked_cost_ref = serializers.CharField(
+        source="linked_cost.document_reference", read_only=True, default=""
+    )
+    linked_material_ref = serializers.CharField(
+        source="linked_material_order.order_reference", read_only=True, default=""
+    )
+
+    class Meta:
+        model = PropertyWorkOrder
+        fields = [
+            "id",
+            "code",
+            "title",
+            "property_profile",
+            "property_name",
+            "property_code",
+            "property_readiness",
+            "reservation",
+            "reservation_code",
+            "guest_name",
+            "template",
+            "template_name",
+            "work_type",
+            "priority",
+            "status",
+            "assigned_to",
+            "assignee_phone",
+            "scheduled_start_at",
+            "must_complete_by",
+            "completed_at",
+            "verified_by",
+            "verified_at",
+            "verification_score",
+            "checklist_items",
+            "verification_photos",
+            "supplies_used",
+            "estimated_cost",
+            "billable_to",
+            "linked_cost",
+            "linked_cost_ref",
+            "linked_material_order",
+            "linked_material_ref",
+            "field_notes",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "property_name",
+            "property_code",
+            "property_readiness",
+            "reservation_code",
+            "guest_name",
+            "template_name",
+            "linked_cost_ref",
+            "linked_material_ref",
+            "created_at",
+            "updated_at",
+        ]
+        extra_kwargs = {
+            "code": {"required": False, "allow_blank": True},
+        }
+
+    def create(self, validated_data):
+        import uuid
+        from crm.services.property_ops_processor import (
+            DEFAULT_TURNOVER_CHECKLIST_ITEMS,
+            _instantiate_checklist,
+        )
+
+        if not validated_data.get("code"):
+            validated_data["code"] = f"WO-{uuid.uuid4().hex[:6].upper()}"
+        if not validated_data.get("checklist_items"):
+            tpl = validated_data.get("template")
+            if tpl and tpl.items_schema:
+                validated_data["checklist_items"] = _instantiate_checklist(tpl.items_schema)
+            else:
+                validated_data["checklist_items"] = _instantiate_checklist(
+                    DEFAULT_TURNOVER_CHECKLIST_ITEMS
+                )
+        return super().create(validated_data)
+
+
+class GuestServiceUpsellSerializer(serializers.ModelSerializer):
+    property_profile = serializers.PrimaryKeyRelatedField(
+        queryset=PropertyProfile.objects.all()
+    )
+    reservation = serializers.PrimaryKeyRelatedField(
+        queryset=ReservationTurn.objects.all(), required=False, allow_null=True
+    )
+    property_name = serializers.CharField(source="property_profile.name", read_only=True)
+    property_code = serializers.CharField(source="property_profile.code", read_only=True)
+    reservation_code = serializers.CharField(
+        source="reservation.confirmation_code", read_only=True, default=""
+    )
+    payment_status = serializers.CharField(
+        source="payment_transaction.status", read_only=True, default=""
+    )
+    payment_external_id = serializers.CharField(
+        source="payment_transaction.external_transaction_id", read_only=True, default=""
+    )
+    work_order_code = serializers.CharField(
+        source="fulfillment_work_order.code", read_only=True, default=""
+    )
+
+    class Meta:
+        model = GuestServiceUpsell
+        fields = [
+            "id",
+            "property_profile",
+            "property_name",
+            "property_code",
+            "reservation",
+            "reservation_code",
+            "service_name",
+            "category",
+            "guest_name",
+            "price",
+            "operator_commission_percent",
+            "currency",
+            "status",
+            "payment_transaction",
+            "payment_status",
+            "payment_external_id",
+            "fulfillment_work_order",
+            "work_order_code",
+            "notes",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "property_name",
+            "property_code",
+            "reservation_code",
+            "payment_status",
+            "payment_external_id",
+            "work_order_code",
+            "created_at",
+            "updated_at",
+        ]
+
 
 
 

@@ -427,3 +427,379 @@ class EmailCommunicationLog(BaseModel):
         return f"[{self.direction}] {self.subject}"
 
 
+class PropertyProfile(BaseModel):
+    """
+    Managed short-term rental, luxury estate, boutique hospitality unit, or post-build warranty home.
+    Bridges construction closeout/warranty into recurring hospitality & property operations.
+    """
+
+    class PropertyType(models.TextChoices):
+        SHORT_TERM_RENTAL = "Short-Term Rental", "Short-Term Rental"
+        LUXURY_ESTATE = "Luxury Estate / Villa", "Luxury Estate / Villa"
+        BOUTIQUE_HOSPITALITY = "Boutique Hospitality", "Boutique Hospitality"
+        WARRANTY_RESIDENCE = "Post-Build Warranty Home", "Post-Build Warranty Home"
+
+    class ReadinessStatus(models.TextChoices):
+        VERIFIED_READY = "Verified Ready", "Verified Ready"
+        OCCUPIED = "Occupied / Guest In-House", "Occupied / Guest In-House"
+        DIRTY_TURN_NEEDED = "Dirty / Turn Needed", "Dirty / Turn Needed"
+        CLEANING_IN_PROGRESS = "Cleaning in Progress", "Cleaning in Progress"
+        PENDING_INSPECTION = "Pending Inspection", "Pending Inspection"
+        MAINTENANCE_HOLD = "Maintenance Hold", "Maintenance Hold"
+
+    code = models.CharField(max_length=32, db_index=True)
+    name = models.CharField(max_length=220, db_index=True)
+    property_type = models.CharField(
+        max_length=48,
+        choices=PropertyType.choices,
+        default=PropertyType.SHORT_TERM_RENTAL,
+        db_index=True,
+    )
+    readiness_status = models.CharField(
+        max_length=48,
+        choices=ReadinessStatus.choices,
+        default=ReadinessStatus.VERIFIED_READY,
+        db_index=True,
+    )
+    address = models.CharField(max_length=255, blank=True, default="")
+    bedrooms = models.PositiveSmallIntegerField(default=3)
+    bathrooms = models.DecimalField(max_digits=4, decimal_places=1, default=Decimal("2.5"))
+    max_guests = models.PositiveSmallIntegerField(default=6)
+    nightly_rate = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("450.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    management_fee_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("20.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    smart_lock_code = models.CharField(max_length=64, blank=True, default="4829#")
+    wifi_network = models.CharField(max_length=120, blank=True, default="")
+    access_instructions = models.TextField(blank=True, default="")
+    owner_contact = models.ForeignKey(
+        Contact,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_properties",
+    )
+    source_project = models.ForeignKey(
+        ConstructionProject,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promoted_properties",
+    )
+    default_cleaner = models.CharField(
+        max_length=120, default="Elena Rostova (Lead Hospitality Tech)"
+    )
+    default_inspector = models.CharField(
+        max_length=120, default="Marcus Vance (Quality Inspector)"
+    )
+    supplies_status = models.CharField(max_length=48, default="Stocked at Par")
+    last_verified_at = models.DateTimeField(null=True, blank=True)
+    latest_operational_note = models.TextField(blank=True, default="")
+
+    class Meta(BaseModel.Meta):
+        constraints = [
+            models.UniqueConstraint(
+                fields=["organization", "code"],
+                name="uniq_org_property_code",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} - {self.name} [{self.readiness_status}]"
+
+
+class ChecklistTemplate(BaseModel):
+    """
+    Reusable room-by-room guided checklist template for turnovers, inspections,
+    preventative maintenance, warranty walkthroughs, and concierge fulfillment.
+    """
+
+    class WorkCategory(models.TextChoices):
+        TURNOVER_CLEAN = "Turnover Clean & Stage", "Turnover Clean & Stage"
+        PRE_ARRIVAL_INSPECTION = "Pre-Arrival 50-Pt Inspection", "Pre-Arrival 50-Pt Inspection"
+        PREVENTATIVE_MAINTENANCE = "Preventative Maintenance", "Preventative Maintenance"
+        WARRANTY_WALKTHROUGH = "Warranty & Systems Check", "Warranty & Systems Check"
+        GUEST_CONCIERGE = "Guest Experience & Concierge", "Guest Experience & Concierge"
+
+    name = models.CharField(max_length=180, db_index=True)
+    category = models.CharField(
+        max_length=48,
+        choices=WorkCategory.choices,
+        default=WorkCategory.TURNOVER_CLEAN,
+        db_index=True,
+    )
+    description = models.TextField(blank=True, default="")
+    estimated_duration_minutes = models.PositiveIntegerField(default=120)
+    requires_supervisor_signoff = models.BooleanField(default=True)
+    items_schema = models.JSONField(default=list, blank=True)
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.category})"
+
+
+class ReservationTurn(BaseModel):
+    """
+    Guest booking or owner stay on a managed property driving turnover & experience scheduling.
+    """
+
+    class Channel(models.TextChoices):
+        AIRBNB = "Airbnb", "Airbnb"
+        VRBO = "Vrbo", "Vrbo"
+        DIRECT_VIP = "Direct / VIP Concierge", "Direct / VIP Concierge"
+        BOOKING_COM = "Booking.com", "Booking.com"
+        OWNER_STAY = "Owner Stay", "Owner Stay"
+
+    class StayStatus(models.TextChoices):
+        UPCOMING = "Upcoming", "Upcoming"
+        CHECKED_IN = "Checked In", "Checked In"
+        CHECKED_OUT = "Checked Out", "Checked Out"
+        CANCELED = "Canceled", "Canceled"
+
+    property_profile = models.ForeignKey(
+        PropertyProfile,
+        on_delete=models.CASCADE,
+        related_name="reservations",
+    )
+    confirmation_code = models.CharField(max_length=64, db_index=True)
+    guest_name = models.CharField(max_length=180, db_index=True)
+    guest_email = models.EmailField(max_length=254, blank=True, default="")
+    guest_phone = models.CharField(max_length=40, blank=True, default="")
+    guests_count = models.PositiveSmallIntegerField(default=2)
+    channel = models.CharField(
+        max_length=32,
+        choices=Channel.choices,
+        default=Channel.AIRBNB,
+        db_index=True,
+    )
+    stay_status = models.CharField(
+        max_length=24,
+        choices=StayStatus.choices,
+        default=StayStatus.UPCOMING,
+        db_index=True,
+    )
+    check_in_at = models.DateTimeField(db_index=True)
+    check_out_at = models.DateTimeField(db_index=True)
+    next_guest_check_in_at = models.DateTimeField(null=True, blank=True)
+    is_same_day_turn = models.BooleanField(default=False, db_index=True)
+    reservation_total = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("1850.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    special_requests = models.TextField(blank=True, default="")
+
+    def clean(self) -> None:
+        if self.check_in_at and self.check_out_at and self.check_out_at < self.check_in_at:
+            raise ValidationError(
+                {"check_out_at": "Check-out timestamp cannot precede check-in timestamp."}
+            )
+
+    def __str__(self) -> str:
+        return f"{self.confirmation_code} - {self.guest_name} ({self.property_profile.code})"
+
+
+class PropertyWorkOrder(BaseModel):
+    """
+    Coordinated, communicated, and visually verified property care task.
+    Supports SLA windows, guided R2 photo checklists, defect escalation, and cost linking.
+    """
+
+    class WorkType(models.TextChoices):
+        TURNOVER_CLEAN = "Turnover Clean", "Turnover Clean"
+        QUALITY_INSPECTION = "Quality Inspection", "Quality Inspection"
+        PREVENTATIVE_MAINTENANCE = "Preventative Maintenance", "Preventative Maintenance"
+        DAMAGE_REPAIR = "Damage / Defect Repair", "Damage / Defect Repair"
+        GUEST_CONCIERGE = "Guest Concierge Service", "Guest Concierge Service"
+
+    class Priority(models.TextChoices):
+        URGENT_SAME_DAY = "Urgent Same-Day Turn", "Urgent Same-Day Turn"
+        HIGH = "High", "High"
+        MEDIUM = "Medium", "Medium"
+        LOW = "Low", "Low"
+
+    class WorkStatus(models.TextChoices):
+        SCHEDULED = "Scheduled", "Scheduled"
+        DISPATCHED = "Dispatched to Field", "Dispatched to Field"
+        IN_PROGRESS = "In Progress", "In Progress"
+        PENDING_VERIFICATION = "Pending Verification", "Pending Verification"
+        VERIFIED_COMPLETE = "Verified Complete", "Verified Complete"
+        FLAGGED_ISSUE = "Flagged / Issue Found", "Flagged / Issue Found"
+
+    class BillableScope(models.TextChoices):
+        OPERATOR = "Operator Routine", "Operator Routine"
+        PROPERTY_OWNER = "Billable to Owner", "Billable to Owner"
+        GUEST_DAMAGE = "Guest Damage Claim", "Guest Damage Claim"
+        GUEST_UPSELL = "Paid Guest Upsell", "Paid Guest Upsell"
+        WARRANTY = "Builder Warranty", "Builder Warranty"
+
+    code = models.CharField(max_length=40, db_index=True)
+    title = models.CharField(max_length=220, db_index=True)
+    property_profile = models.ForeignKey(
+        PropertyProfile,
+        on_delete=models.CASCADE,
+        related_name="work_orders",
+    )
+    reservation = models.ForeignKey(
+        ReservationTurn,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="work_orders",
+    )
+    template = models.ForeignKey(
+        ChecklistTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="work_orders",
+    )
+    work_type = models.CharField(
+        max_length=48,
+        choices=WorkType.choices,
+        default=WorkType.TURNOVER_CLEAN,
+        db_index=True,
+    )
+    priority = models.CharField(
+        max_length=32,
+        choices=Priority.choices,
+        default=Priority.HIGH,
+        db_index=True,
+    )
+    status = models.CharField(
+        max_length=32,
+        choices=WorkStatus.choices,
+        default=WorkStatus.SCHEDULED,
+        db_index=True,
+    )
+    assigned_to = models.CharField(
+        max_length=120, default="Elena Rostova (Lead Hospitality Tech)"
+    )
+    assignee_phone = models.CharField(max_length=40, blank=True, default="+1-555-0194")
+    scheduled_start_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    must_complete_by = models.DateTimeField(null=True, blank=True, db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.CharField(max_length=120, blank=True, default="")
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_score = models.PositiveSmallIntegerField(default=0)
+    checklist_items = models.JSONField(default=list, blank=True)
+    verification_photos = models.JSONField(default=list, blank=True)
+    supplies_used = models.JSONField(default=list, blank=True)
+    estimated_cost = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("165.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    billable_to = models.CharField(
+        max_length=32,
+        choices=BillableScope.choices,
+        default=BillableScope.OPERATOR,
+    )
+    linked_cost = models.ForeignKey(
+        ProjectCost,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="property_work_orders",
+    )
+    linked_material_order = models.ForeignKey(
+        MaterialOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="property_work_orders",
+    )
+    field_notes = models.TextField(blank=True, default="")
+
+    def __str__(self) -> str:
+        return f"[{self.code}] {self.title} ({self.status})"
+
+
+class GuestServiceUpsell(BaseModel):
+    """
+    Monetizable guest hospitality services & stay add-ons that boost service revenue
+    and auto-dispatch operational fulfillment work orders upon payment.
+    """
+
+    class ServiceCategory(models.TextChoices):
+        ARRIVAL_DEPARTURE = "Early Check-In / Late Check-Out", "Early Check-In / Late Check-Out"
+        HOUSEKEEPING = "Mid-Stay Refresh Clean", "Mid-Stay Refresh Clean"
+        AMENITY_HEATING = "Pool & Spa Heating", "Pool & Spa Heating"
+        CONCIERGE = "Private Chef / Fridge Pre-Stock", "Private Chef / Fridge Pre-Stock"
+        EQUIPMENT = "Crib / Gear Rental", "Crib / Gear Rental"
+
+    class UpsellStatus(models.TextChoices):
+        OFFERED = "Offered to Guest", "Offered to Guest"
+        REQUESTED = "Requested", "Requested"
+        PAID_SCHEDULED = "Paid & Work Dispatched", "Paid & Work Dispatched"
+        FULFILLED = "Verified Fulfilled", "Verified Fulfilled"
+        CANCELED = "Canceled", "Canceled"
+
+    property_profile = models.ForeignKey(
+        PropertyProfile,
+        on_delete=models.CASCADE,
+        related_name="upsells",
+    )
+    reservation = models.ForeignKey(
+        ReservationTurn,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="upsells",
+    )
+    service_name = models.CharField(max_length=180, db_index=True)
+    category = models.CharField(
+        max_length=48,
+        choices=ServiceCategory.choices,
+        default=ServiceCategory.ARRIVAL_DEPARTURE,
+    )
+    guest_name = models.CharField(max_length=180, blank=True, default="")
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("150.00"),
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    operator_commission_percent = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=Decimal("35.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
+    currency = models.CharField(max_length=8, default="USD")
+    status = models.CharField(
+        max_length=32,
+        choices=UpsellStatus.choices,
+        default=UpsellStatus.OFFERED,
+        db_index=True,
+    )
+    payment_transaction = models.ForeignKey(
+        "integrations.PaymentTransaction",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="guest_upsells",
+    )
+    fulfillment_work_order = models.ForeignKey(
+        PropertyWorkOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="upsell_triggers",
+    )
+    notes = models.TextField(blank=True, default="")
+
+    def __str__(self) -> str:
+        return f"{self.service_name} ({self.price} {self.currency}) - {self.status}"
+
+
+

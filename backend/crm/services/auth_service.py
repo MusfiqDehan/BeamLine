@@ -85,12 +85,70 @@ class JWTService:
         return payload
 
     @classmethod
+    def get_token_lifetimes(
+        cls, remember_me: bool = False, organization: Any = None
+    ) -> dict[str, Any]:
+        """
+        Resolves access and refresh token lifetimes from PlatformSettings and
+        organization feature flags (`sub_auth_remember_me`).
+        """
+        from common.tenancy import PlatformSettings
+
+        try:
+            platform = PlatformSettings.get_settings()
+            platform_enabled = bool(getattr(platform, "remember_me_enabled", True))
+            duration_days = max(
+                1, min(365, int(getattr(platform, "remember_me_duration_days", 30) or 30))
+            )
+            access_minutes = max(
+                5, int(getattr(platform, "access_token_lifetime_minutes", 1440) or 1440)
+            )
+        except Exception:
+            platform_enabled = True
+            duration_days = 30
+            access_minutes = 1440
+
+        tenant_enabled = (
+            organization.is_feature_enabled("sub_auth_remember_me")
+            if (organization and hasattr(organization, "is_feature_enabled"))
+            else True
+        )
+        remember_me_allowed = platform_enabled and tenant_enabled
+        effective_remember_me = bool(remember_me and remember_me_allowed)
+
+        access_lifetime = access_minutes * 60
+        if effective_remember_me:
+            refresh_lifetime = duration_days * 86400
+        else:
+            refresh_lifetime = max(access_lifetime * 2, 60 * 60 * 48)
+
+        return {
+            "access_lifetime": access_lifetime,
+            "refresh_lifetime": refresh_lifetime,
+            "effective_remember_me": effective_remember_me,
+            "duration_days": duration_days,
+            "remember_me_allowed": remember_me_allowed,
+        }
+
+    @classmethod
     def generate_token_pair(
-        cls, user: Any, organization: Any = None, role: str = "PM"
+        cls,
+        user: Any,
+        organization: Any = None,
+        role: str = "PM",
+        remember_me: bool = False,
     ) -> dict[str, Any]:
         now = int(time.time())
         org_id = str(organization.id) if organization else None
         org_slug = organization.slug if organization else None
+
+        lifetimes = cls.get_token_lifetimes(
+            remember_me=remember_me, organization=organization
+        )
+        access_lifetime = lifetimes["access_lifetime"]
+        refresh_lifetime = lifetimes["refresh_lifetime"]
+        effective_remember_me = lifetimes["effective_remember_me"]
+        duration_days = lifetimes["duration_days"]
 
         access_payload = {
             "type": "access",
@@ -101,23 +159,106 @@ class JWTService:
             "organization_id": org_id,
             "organization_slug": org_slug,
             "role": role,
+            "remember_me": effective_remember_me,
             "iat": now,
-            "exp": now + cls.ACCESS_TOKEN_LIFETIME,
+            "exp": now + access_lifetime,
         }
 
         refresh_payload = {
             "type": "refresh",
             "user_id": str(user.id),
             "organization_id": org_id,
+            "organization_slug": org_slug,
+            "role": role,
+            "remember_me": effective_remember_me,
+            "remember_me_days": duration_days if effective_remember_me else 0,
             "iat": now,
-            "exp": now + cls.REFRESH_TOKEN_LIFETIME,
+            "exp": now + refresh_lifetime,
         }
 
         return {
             "access_token": cls.encode(access_payload),
             "refresh_token": cls.encode(refresh_payload),
-            "expires_in": cls.ACCESS_TOKEN_LIFETIME,
+            "expires_in": access_lifetime,
+            "refresh_expires_in": refresh_lifetime,
+            "access_expires_at": now + access_lifetime,
+            "refresh_expires_at": now + refresh_lifetime,
+            "remember_me": effective_remember_me,
+            "remember_me_duration_days": duration_days if effective_remember_me else 0,
             "token_type": "Bearer",
+        }
+
+    @classmethod
+    def refresh_access_token(
+        cls, refresh_token: str, tenant: Any = None
+    ) -> dict[str, Any]:
+        """
+        Validates a refresh token and mints a fresh access & refresh token pair
+        preserving the user's tenant, active role, and Remember Me policy.
+        """
+        from common.tenancy import Organization, OrganizationMember
+
+        payload = cls.decode(refresh_token)
+        if payload.get("type") != "refresh":
+            raise exceptions.AuthenticationFailed("Provided token is not a refresh token.")
+
+        user_id = payload.get("user_id")
+        try:
+            user = User.objects.get(id=user_id, is_active=True)
+        except User.DoesNotExist:
+            raise exceptions.AuthenticationFailed("User not found or deactivated.")
+
+        resolved_org = tenant
+        if not resolved_org and payload.get("organization_id"):
+            resolved_org = Organization.objects.filter(
+                id=payload.get("organization_id")
+            ).first()
+        if not resolved_org and payload.get("organization_slug"):
+            resolved_org = Organization.objects.filter(
+                slug=payload.get("organization_slug")
+            ).first()
+
+        role = str(payload.get("role") or "Client")
+        if user.is_superuser:
+            role = "Superadmin"
+        elif resolved_org:
+            membership = OrganizationMember.objects.filter(
+                organization=resolved_org, user=user, is_active=True
+            ).first()
+            if membership:
+                role = membership.role
+        else:
+            membership = (
+                OrganizationMember.objects.filter(user=user, is_active=True)
+                .select_related("organization")
+                .first()
+            )
+            if membership:
+                resolved_org = membership.organization
+                role = membership.role
+
+        remember_me = bool(payload.get("remember_me", False))
+        tokens = cls.generate_token_pair(
+            user, resolved_org, role=role, remember_me=remember_me
+        )
+        return {
+            "tokens": tokens,
+            "user": {
+                "id": str(user.id),
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_superuser": bool(user.is_superuser),
+            },
+            "organization": {
+                "id": str(resolved_org.id),
+                "name": resolved_org.name,
+                "slug": resolved_org.slug,
+            }
+            if resolved_org
+            else None,
+            "role": role,
         }
 
 
@@ -125,6 +266,9 @@ class BeamlineJWTAuthentication(authentication.BaseAuthentication):
     """
     DRF Authentication Backend. Validates Bearer JWT tokens in Authorization headers.
     """
+
+    def authenticate_header(self, request) -> str:
+        return 'Bearer realm="api"'
 
     def authenticate(self, request) -> tuple[Any, dict[str, Any]] | None:
         auth_header = request.headers.get("Authorization", "")

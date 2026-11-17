@@ -43,6 +43,7 @@ def api_root(request):
                 "simulator_trigger": "/api/v1/simulator/trigger/",
                 "oauth_config": "/api/v1/auth/oauth-config/",
                 "auth_login": "/api/v1/auth/login/",
+                "auth_refresh": "/api/v1/auth/refresh/",
                 "auth_google": "/api/v1/auth/google/",
                 "auth_me": "/api/v1/auth/me/",
                 "superadmin_settings": "/api/v1/superadmin/platform-settings/",

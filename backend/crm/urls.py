@@ -30,6 +30,7 @@ from crm.views import (
     ClientEmailTriggerAPIView,
     OAuthPublicConfigAPIView,
     LoginAPIView,
+    RefreshTokenAPIView,
     RegisterAPIView,
     GoogleOAuthAPIView,
     MeAPIView,
@@ -48,6 +49,20 @@ from crm.views import (
     TenantMemberListCreateAPIView,
     AcceptInvitationAPIView,
     MediaAssetUploadAPIView,
+    PropertyProfileListCreateAPIView,
+    PropertyProfileDetailAPIView,
+    PromoteProjectToPropertyAPIView,
+    ChecklistTemplateListCreateAPIView,
+    ChecklistTemplateDetailAPIView,
+    ReservationTurnListCreateAPIView,
+    ReservationTurnDetailAPIView,
+    PropertyWorkOrderListCreateAPIView,
+    PropertyWorkOrderDetailAPIView,
+    VerifyPropertyWorkOrderAPIView,
+    GuestServiceUpsellListCreateAPIView,
+    GuestServiceUpsellDetailAPIView,
+    FulfillGuestUpsellAPIView,
+    PropertyOpsAutomationAPIView,
 )
 
 urlpatterns = [
@@ -144,6 +159,8 @@ urlpatterns = [
     path("auth/oauth-config", OAuthPublicConfigAPIView.as_view()),
     path("auth/login/", LoginAPIView.as_view(), name="auth-login"),
     path("auth/login", LoginAPIView.as_view()),
+    path("auth/refresh/", RefreshTokenAPIView.as_view(), name="auth-refresh"),
+    path("auth/refresh", RefreshTokenAPIView.as_view()),
     path("auth/register/", RegisterAPIView.as_view(), name="auth-register"),
     path("auth/register", RegisterAPIView.as_view()),
     path("auth/google/", GoogleOAuthAPIView.as_view(), name="auth-google"),
@@ -188,4 +205,39 @@ urlpatterns = [
     # 19. Media & Static Asset Uploads (Cloudflare R2 'root/beamline/')
     path("media/assets/", MediaAssetUploadAPIView.as_view(), name="media-assets"),
     path("media/assets", MediaAssetUploadAPIView.as_view()),
+
+    # 20. Property Operations & Hospitality Experience Platform
+    path("properties/", PropertyProfileListCreateAPIView.as_view(), name="property-list"),
+    path("properties", PropertyProfileListCreateAPIView.as_view()),
+    path("properties/promote-from-project/<str:project_pk>/", PromoteProjectToPropertyAPIView.as_view(), name="property-promote-from-project"),
+    path("properties/promote-from-project/<str:project_pk>", PromoteProjectToPropertyAPIView.as_view()),
+    path("properties/<str:pk>/", PropertyProfileDetailAPIView.as_view(), name="property-detail"),
+    path("properties/<str:pk>", PropertyProfileDetailAPIView.as_view()),
+
+    path("property-checklists/", ChecklistTemplateListCreateAPIView.as_view(), name="property-checklist-list"),
+    path("property-checklists", ChecklistTemplateListCreateAPIView.as_view()),
+    path("property-checklists/<str:pk>/", ChecklistTemplateDetailAPIView.as_view(), name="property-checklist-detail"),
+    path("property-checklists/<str:pk>", ChecklistTemplateDetailAPIView.as_view()),
+
+    path("reservations/", ReservationTurnListCreateAPIView.as_view(), name="reservation-list"),
+    path("reservations", ReservationTurnListCreateAPIView.as_view()),
+    path("reservations/<str:pk>/", ReservationTurnDetailAPIView.as_view(), name="reservation-detail"),
+    path("reservations/<str:pk>", ReservationTurnDetailAPIView.as_view()),
+
+    path("work-orders/", PropertyWorkOrderListCreateAPIView.as_view(), name="work-order-list"),
+    path("work-orders", PropertyWorkOrderListCreateAPIView.as_view()),
+    path("work-orders/<str:pk>/verify/", VerifyPropertyWorkOrderAPIView.as_view(), name="work-order-verify"),
+    path("work-orders/<str:pk>/verify", VerifyPropertyWorkOrderAPIView.as_view()),
+    path("work-orders/<str:pk>/", PropertyWorkOrderDetailAPIView.as_view(), name="work-order-detail"),
+    path("work-orders/<str:pk>", PropertyWorkOrderDetailAPIView.as_view()),
+
+    path("guest-upsells/", GuestServiceUpsellListCreateAPIView.as_view(), name="guest-upsell-list"),
+    path("guest-upsells", GuestServiceUpsellListCreateAPIView.as_view()),
+    path("guest-upsells/<str:pk>/fulfill/", FulfillGuestUpsellAPIView.as_view(), name="guest-upsell-fulfill"),
+    path("guest-upsells/<str:pk>/fulfill", FulfillGuestUpsellAPIView.as_view()),
+    path("guest-upsells/<str:pk>/", GuestServiceUpsellDetailAPIView.as_view(), name="guest-upsell-detail"),
+    path("guest-upsells/<str:pk>", GuestServiceUpsellDetailAPIView.as_view()),
+
+    path("property-ops/automate/", PropertyOpsAutomationAPIView.as_view(), name="property-ops-automate"),
+    path("property-ops/automate", PropertyOpsAutomationAPIView.as_view()),
 ]

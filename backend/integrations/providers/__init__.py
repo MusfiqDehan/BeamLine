@@ -11,6 +11,7 @@ def load_builtin_providers() -> None:
         google_oauth,
         notion,
         payment_providers,
+        property_pms,
         smtp_email,
     )
 

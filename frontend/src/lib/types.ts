@@ -216,6 +216,24 @@ export interface DashboardSummary {
     flagged_costs_count: number;
     total_costs_records: number;
     email_notifications_count: number;
+    managed_properties_count?: number;
+    verified_ready_properties_count?: number;
+    active_work_orders_count?: number;
+    urgent_same_day_turns_count?: number;
+    flagged_property_issues_count?: number;
+    service_upsell_revenue_total?: string;
+  };
+  property_ops_summary?: {
+    managed_properties_count: number;
+    verified_ready_properties_count: number;
+    active_work_orders_count: number;
+    urgent_same_day_turns_count: number;
+    flagged_property_issues_count: number;
+    service_upsell_revenue_total: string;
+    readiness_breakdown: Array<{
+      readiness_status: string;
+      count: number;
+    }>;
   };
   stages_breakdown: Array<{
     stage: string;
@@ -291,6 +309,12 @@ export interface FeatureFlags {
   sub_projects_board?: boolean;
   sub_projects_tasks?: boolean;
   sub_projects_materials?: boolean;
+  // Property Operations & Experience Platform
+  page_property_ops?: boolean;
+  sub_property_properties?: boolean;
+  sub_property_turnovers?: boolean;
+  sub_property_checklists?: boolean;
+  sub_property_upsells?: boolean;
   // Automation & Finance Sub-Features
   sub_automation_invoices?: boolean;
   sub_automation_emails?: boolean;
@@ -304,7 +328,9 @@ export interface FeatureFlags {
   sub_integration_stripe?: boolean;
   sub_integration_bkash?: boolean;
   sub_integration_sslcommerz?: boolean;
+  sub_integration_pms?: boolean;
   sub_team_invitations?: boolean;
+  sub_auth_remember_me?: boolean;
   [key: string]: boolean | undefined;
 }
 
@@ -341,6 +367,9 @@ export interface PlatformSettings {
   logo_url?: string;
   social_cover_url?: string;
   allow_self_registration: boolean;
+  remember_me_enabled?: boolean;
+  remember_me_duration_days?: number;
+  access_token_lifetime_minutes?: number;
   updated_at?: string;
 }
 
@@ -381,6 +410,11 @@ export interface AuthTokens {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  refresh_expires_in?: number;
+  access_expires_at?: number;
+  refresh_expires_at?: number;
+  remember_me?: boolean;
+  remember_me_duration_days?: number;
   token_type: string;
 }
 
@@ -440,6 +474,13 @@ export interface OAuthPublicConfig {
     source: "platform" | "client";
     brand_name: string;
   };
+  remember_me?: {
+    enabled: boolean;
+    platform_enabled: boolean;
+    tenant_enabled: boolean;
+    duration_days: number;
+    access_token_lifetime_minutes: number;
+  };
 }
 
 export interface SuperadminDashboardStats {
@@ -457,6 +498,9 @@ export interface SuperadminDashboardStats {
   platform: {
     platform_name: string;
     base_domain: string;
+    remember_me_enabled?: boolean;
+    remember_me_duration_days?: number;
+    access_token_lifetime_minutes?: number;
     google_oauth_enabled: boolean;
     has_google_secret: boolean;
   };
@@ -694,6 +738,163 @@ export interface IntegrationExecutionLog {
   metadata: Record<string, unknown>;
   created_at: string;
 }
+
+export interface ChecklistStepItem {
+  id: string;
+  room_area: string;
+  instruction: string;
+  requires_photo: boolean;
+  is_critical: boolean;
+  completed?: boolean;
+  photo_url?: string;
+  flagged_defect?: boolean;
+  defect_notes?: string;
+  completed_at?: string | null;
+}
+
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  estimated_duration_minutes: number;
+  requires_supervisor_signoff: boolean;
+  items_schema: ChecklistStepItem[];
+  items_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PropertyProfile {
+  id: string;
+  code: string;
+  name: string;
+  property_type: string;
+  readiness_status: string;
+  address: string;
+  bedrooms: number;
+  bathrooms: string;
+  max_guests: number;
+  nightly_rate: string;
+  management_fee_percent: string;
+  smart_lock_code: string;
+  wifi_network: string;
+  access_instructions: string;
+  owner_contact: string | null;
+  owner_contact_name: string;
+  source_project: string | null;
+  source_project_code: string;
+  source_project_name: string;
+  default_cleaner: string;
+  default_inspector: string;
+  supplies_status: string;
+  last_verified_at: string | null;
+  latest_operational_note: string;
+  work_orders_count: number;
+  open_work_orders_count: number;
+  reservations_count: number;
+  upsells_revenue_total: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReservationTurn {
+  id: string;
+  property_profile: string;
+  property_name: string;
+  property_code: string;
+  confirmation_code: string;
+  guest_name: string;
+  guest_email: string;
+  guest_phone: string;
+  guests_count: number;
+  channel: string;
+  stay_status: string;
+  check_in_at: string;
+  check_out_at: string;
+  next_guest_check_in_at: string | null;
+  is_same_day_turn: boolean;
+  reservation_total: string;
+  special_requests: string;
+  work_orders_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PropertyWorkOrder {
+  id: string;
+  code: string;
+  title: string;
+  property_profile: string;
+  property_name: string;
+  property_code: string;
+  property_readiness: string;
+  reservation: string | null;
+  reservation_code: string;
+  guest_name: string;
+  template: string | null;
+  template_name: string;
+  work_type: string;
+  priority: string;
+  status: string;
+  assigned_to: string;
+  assignee_phone: string;
+  scheduled_start_at: string | null;
+  must_complete_by: string | null;
+  completed_at: string | null;
+  verified_by: string;
+  verified_at: string | null;
+  verification_score: number;
+  checklist_items: ChecklistStepItem[];
+  verification_photos: string[];
+  supplies_used: string[];
+  estimated_cost: string;
+  billable_to: string;
+  linked_cost: string | null;
+  linked_cost_ref: string;
+  linked_material_order: string | null;
+  linked_material_ref: string;
+  field_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GuestServiceUpsell {
+  id: string;
+  property_profile: string;
+  property_name: string;
+  property_code: string;
+  reservation: string | null;
+  reservation_code: string;
+  service_name: string;
+  category: string;
+  guest_name: string;
+  price: string;
+  operator_commission_percent: string;
+  currency: string;
+  status: string;
+  payment_transaction: string | null;
+  payment_status: string;
+  payment_external_id: string;
+  fulfillment_work_order: string | null;
+  work_order_code: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PropertyOpsAutomationResponse {
+  scenario: string;
+  scenario_label: string;
+  status_outcome: string;
+  summary: string;
+  property: PropertyProfile;
+  work_order: PropertyWorkOrder | null;
+  reservation: ReservationTurn | null;
+  upsell: GuestServiceUpsell | null;
+  created_cost: ProjectCost | null;
+}
+
 
 
 

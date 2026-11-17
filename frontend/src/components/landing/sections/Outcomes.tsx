@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleDollarSign, ClipboardCheck, ShieldCheck, TrendingUp, type LucideIcon } from "lucide-react";
+import { Building2, CheckCircle2, CircleDollarSign, ClipboardCheck, ShieldCheck, Sparkles, TrendingUp, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { stats } from "../data";
 import { trackSpotlight, useCountUp, useInView } from "../hooks";
@@ -151,6 +151,43 @@ export function Outcomes() {
                 </div>
               </div>
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300">On budget</span>
+            </div>
+          </BentoCard>
+
+          <BentoCard
+            icon={Building2}
+            title="Coordinate & verify every property"
+            description="Run same-day turnovers, smart-lock checks, and mandatory R2 photo checklists — with automatic defect escalation."
+            className="md:col-span-3"
+            delay={250}
+          >
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              <div className="rounded-xl bg-stone-100 p-3 dark:bg-white/5">
+                <span className="text-stone-500">Oakridge Villa</span>
+                <p className="mt-1 font-bold text-emerald-600 dark:text-emerald-400">Verified Ready · 100% QA</p>
+              </div>
+              <div className="rounded-xl bg-stone-100 p-3 dark:bg-white/5">
+                <span className="text-stone-500">Same-Day Turn SLA</span>
+                <p className="mt-1 font-bold text-amber-600 dark:text-amber-400">4h Window · Photo Proof</p>
+              </div>
+            </div>
+          </BentoCard>
+
+          <BentoCard
+            icon={Sparkles}
+            title="Boost service & guest revenue"
+            description="Monetize early check-ins, mid-stay cleans, pool heating, and concierge stocking with 1-click work dispatch."
+            className="md:col-span-3"
+            delay={300}
+          >
+            <div className="flex items-center justify-between rounded-xl bg-stone-100 px-4 py-3 dark:bg-white/5">
+              <div>
+                <p className="text-xs text-stone-500">Paid Guest Add-On</p>
+                <p className="text-sm font-bold text-stone-950 dark:text-white">Early Check-In + Pool Heating</p>
+              </div>
+              <span className="rounded-full bg-emerald-100 px-3 py-1 font-mono text-xs font-black text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300">
+                +$245
+              </span>
             </div>
           </BentoCard>
         </div>
