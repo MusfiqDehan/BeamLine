@@ -36,6 +36,81 @@ interface AuthModalProps {
   onLogout: () => void;
 }
 
+interface AuthSuccessPayload {
+  tokens: AuthTokens;
+  user: AuthUser;
+  role: string;
+  organization?: { slug: string; name: string };
+}
+
+function RememberMeCheckbox({
+  id,
+  checked,
+  durationDays,
+  onChange,
+}: {
+  id: string;
+  checked: boolean;
+  durationDays: number;
+  onChange: (nextChecked: boolean) => void;
+}) {
+  const unit = durationDays === 1 ? "day" : "days";
+  return (
+    <div className="rounded-xl border border-stone-200/80 bg-stone-50/70 px-3 py-2.5 dark:border-stone-800 dark:bg-stone-800/40">
+      <label htmlFor={id} className="flex items-start gap-2.5 cursor-pointer select-none">
+        <input
+          id={id}
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500 dark:border-stone-700 dark:bg-stone-900 cursor-pointer"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+              Remember me
+            </span>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/80 dark:text-amber-300">
+              {durationDays} {unit}
+            </span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400">
+            Keep credentials &amp; session active for {durationDays} {unit} via auto-refresh token
+          </p>
+        </div>
+      </label>
+    </div>
+  );
+}
+
+function persistAuthSession(
+  data: AuthSuccessPayload,
+  rememberMeEnabled: boolean,
+  rememberMe: boolean,
+  durationDays: number,
+  credentialsToSave?: { loginId: string; password: string }
+) {
+  const activeRemember = rememberMeEnabled && rememberMe;
+  apiClient.setAuthTokens(data.tokens, {
+    rememberMe: activeRemember,
+    durationDays,
+  });
+  if (data.organization?.slug) {
+    apiClient.setTenantSlug(data.organization.slug);
+  }
+  if (credentialsToSave) {
+    if (activeRemember) {
+      apiClient.setRememberedCredentials(
+        credentialsToSave.loginId,
+        credentialsToSave.password,
+        durationDays
+      );
+    } else {
+      apiClient.clearRememberedCredentials();
+    }
+  }
+}
+
 export function AuthModal({
   isOpen,
   onClose,
@@ -48,6 +123,7 @@ export function AuthModal({
   const [oauthConfig, setOauthConfig] = useState<OAuthPublicConfig | null>(null);
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   
   // Registration form state
   const [regOrgName, setRegOrgName] = useState("");
@@ -112,6 +188,26 @@ export function AuthModal({
       });
   }, [isOpen, currentUser]);
 
+  const rememberMeEnabled = oauthConfig?.remember_me ? oauthConfig.remember_me.enabled : true;
+  const rememberMeDays = oauthConfig?.remember_me?.duration_days ?? 30;
+
+  useEffect(() => {
+    if (!isOpen || currentUser) return;
+    if (!rememberMeEnabled) {
+      setRememberMe(false);
+      apiClient.clearRememberedCredentials();
+      return;
+    }
+    const saved = apiClient.getRememberedCredentials();
+    if (saved) {
+      setLoginId((prev) => prev || saved.loginId);
+      if (saved.password) {
+        setPassword((prev) => prev || saved.password || "");
+      }
+      setRememberMe(true);
+    }
+  }, [isOpen, currentUser, rememberMeEnabled]);
+
   if (!isOpen) return null;
 
   const handleQuickLogin = async (username: string, pass: string) => {
@@ -119,21 +215,18 @@ export function AuthModal({
     setPassword(pass);
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/login/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/login/", {
         username_or_email: username,
         password: pass,
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays, {
+        loginId: username,
+        password: pass,
+      });
       setSuccessMsg(`Welcome back, ${res.data.user.username}!`);
       setTimeout(() => {
         onAuthSuccess(
@@ -158,21 +251,18 @@ export function AuthModal({
     }
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/login/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/login/", {
         username_or_email: loginId.trim(),
         password,
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays, {
+        loginId: loginId.trim(),
+        password,
+      });
       setSuccessMsg(`Welcome back, ${res.data.user.username}!`);
       setTimeout(() => {
         onAuthSuccess(
@@ -202,23 +292,17 @@ export function AuthModal({
     }
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/register/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/register/", {
         email: regEmail.trim(),
         password: regPassword,
         full_name: regFullName.trim(),
         organization_name: regOrgName.trim(),
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays);
       setSuccessMsg(`Workspace created! Welcome, ${res.data.user.username}!`);
       setTimeout(() => {
         onAuthSuccess(
@@ -239,20 +323,14 @@ export function AuthModal({
   const handleMockGoogleLogin = async (email: string) => {
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/google/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/google/", {
         id_token: `test_google_token_${email}`,
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays);
       setSuccessMsg(`Google login verified as ${email}`);
       setTimeout(() => {
         onAuthSuccess(
@@ -291,12 +369,13 @@ export function AuthModal({
         message: "Profile updated and synced successfully!",
       });
       const token = apiClient.getAuthToken() || "";
+      const refreshToken = apiClient.getRefreshToken() || "";
       onAuthSuccess(
         res.data,
         currentRole,
         {
           access_token: token,
-          refresh_token: "",
+          refresh_token: refreshToken,
           expires_in: 86400,
           token_type: "Bearer",
         },
@@ -626,6 +705,20 @@ export function AuthModal({
                     />
                   </div>
 
+                  {rememberMeEnabled && (
+                    <RememberMeCheckbox
+                      id="remember-me-modal"
+                      checked={rememberMe}
+                      durationDays={rememberMeDays}
+                      onChange={(checked) => {
+                        setRememberMe(checked);
+                        if (!checked) {
+                          apiClient.clearRememberedCredentials();
+                        }
+                      }}
+                    />
+                  )}
+
                   <button
                     type="submit"
                     disabled={submitting}
@@ -784,6 +877,7 @@ export function AuthGate({ oauthConfig, onAuthSuccess }: AuthGateProps) {
   const [activeTab, setActiveTab] = useState<"login" | "register">("login");
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Registration state
   const [regOrgName, setRegOrgName] = useState("");
@@ -797,27 +891,42 @@ export function AuthGate({ oauthConfig, onAuthSuccess }: AuthGateProps) {
 
   const activeTenant = oauthConfig?.tenant;
   const googleConfig = oauthConfig?.google_oauth;
+  const rememberMeEnabled = oauthConfig?.remember_me ? oauthConfig.remember_me.enabled : true;
+  const rememberMeDays = oauthConfig?.remember_me?.duration_days ?? 30;
+
+  useEffect(() => {
+    if (!rememberMeEnabled) {
+      setRememberMe(false);
+      apiClient.clearRememberedCredentials();
+      return;
+    }
+    const saved = apiClient.getRememberedCredentials();
+    if (saved) {
+      setLoginId((prev) => prev || saved.loginId);
+      if (saved.password) {
+        setPassword((prev) => prev || saved.password || "");
+      }
+      setRememberMe(true);
+    }
+  }, [rememberMeEnabled]);
 
   const handleQuickLogin = async (username: string, pass: string) => {
     setLoginId(username);
     setPassword(pass);
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/login/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/login/", {
         username_or_email: username,
         password: pass,
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays, {
+        loginId: username,
+        password: pass,
+      });
       setSuccessMsg(`Welcome back, ${res.data.user.username}!`);
       setTimeout(() => {
         onAuthSuccess(
@@ -842,21 +951,18 @@ export function AuthGate({ oauthConfig, onAuthSuccess }: AuthGateProps) {
     }
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/login/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/login/", {
         username_or_email: loginId.trim(),
         password,
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays, {
+        loginId: loginId.trim(),
+        password,
+      });
       setSuccessMsg(`Welcome back, ${res.data.user.username}!`);
       setTimeout(() => {
         onAuthSuccess(
@@ -885,23 +991,17 @@ export function AuthGate({ oauthConfig, onAuthSuccess }: AuthGateProps) {
     }
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/register/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/register/", {
         email: regEmail.trim(),
         password: regPassword,
         full_name: regFullName.trim(),
         organization_name: regOrgName.trim(),
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays);
       setSuccessMsg(`Workspace created! Welcome, ${res.data.user.username}!`);
       setTimeout(() => {
         onAuthSuccess(
@@ -921,20 +1021,14 @@ export function AuthGate({ oauthConfig, onAuthSuccess }: AuthGateProps) {
   const handleMockGoogleLogin = async (email: string) => {
     setSubmitting(true);
     setErrorMsg(null);
+    const activeRemember = rememberMeEnabled && rememberMe;
     try {
-      const res = await apiClient.post<{
-        tokens: AuthTokens;
-        user: AuthUser;
-        role: string;
-        organization?: { slug: string; name: string };
-      }>("/auth/google/", {
+      const res = await apiClient.post<AuthSuccessPayload>("/auth/google/", {
         id_token: `test_google_token_${email}`,
+        remember_me: activeRemember,
       });
 
-      apiClient.setAuthToken(res.data.tokens.access_token);
-      if (res.data.organization?.slug) {
-        apiClient.setTenantSlug(res.data.organization.slug);
-      }
+      persistAuthSession(res.data, rememberMeEnabled, rememberMe, rememberMeDays);
       setSuccessMsg(`Google login verified as ${email}`);
       setTimeout(() => {
         onAuthSuccess(
@@ -1158,6 +1252,20 @@ export function AuthGate({ oauthConfig, onAuthSuccess }: AuthGateProps) {
                       className="py-2"
                     />
                   </div>
+
+                  {rememberMeEnabled && (
+                    <RememberMeCheckbox
+                      id="remember-me-gate"
+                      checked={rememberMe}
+                      durationDays={rememberMeDays}
+                      onChange={(checked) => {
+                        setRememberMe(checked);
+                        if (!checked) {
+                          apiClient.clearRememberedCredentials();
+                        }
+                      }}
+                    />
+                  )}
 
                   <button
                     type="submit"
