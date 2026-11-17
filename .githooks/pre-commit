@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# BeamLine Git Hook - Prevent direct commits to main branch
+set -e
+
+branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+
+if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+  echo "❌ [BLOCKED] Direct commits to '$branch' branch are not allowed."
+  echo "👉 Please switch to 'dev' or a feature branch, and submit a pull request to merge into $branch."
+  exit 1
+fi
