@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   AlertCircle,
   Bell,
+  Blocks,
   Building2,
   Check,
   CheckCircle2,
@@ -81,6 +82,7 @@ export type SuperadminTab =
   | "subscriptions"
   | "support"
   | "notifications"
+  | "integrations"
   | "settings";
 
 const FEATURE_GROUPS: Array<{
@@ -532,9 +534,15 @@ export function PlatformSuperAdminPortal({
       badgeTone: "emerald",
     },
     {
+      id: "integrations",
+      label: "Third-Party Integrations",
+      description: "OAuth, payments, Notion & AI",
+      icon: Blocks,
+    },
+    {
       id: "settings",
-      label: "Platform & Integrations",
-      description: "Domains, plugins & 2-tier governance",
+      label: "Platform Settings",
+      description: "Domains, branding & auth policy",
       icon: Sliders,
     },
   ];
@@ -564,9 +572,13 @@ export function PlatformSuperAdminPortal({
       title: "System Announcements & Broadcasts",
       subtitle: "Publish platform maintenance banners and targeted operational notices to clients",
     },
+    integrations: {
+      title: "Third-Party Integrations & Plugins",
+      subtitle: "Configure two-tier plugin governance, OAuth providers, payment gateways, and global fallback credentials",
+    },
     settings: {
-      title: "Platform Infrastructure & Third-Party Integrations",
-      subtitle: "Configure platform base domain, two-tier plugin governance, payment gateways, and global fallback credentials",
+      title: "Platform Settings & Authentication Policy",
+      subtitle: "Configure platform name, base domain, branding, SEO metadata, and Remember Me / token policy",
     },
   };
 
@@ -1779,7 +1791,19 @@ export function PlatformSuperAdminPortal({
           )}
 
           {/* ========================================================== */}
-          {/* TAB 7: PLATFORM SETTINGS & INTEGRATIONS                    */}
+          {/* TAB 7: THIRD-PARTY INTEGRATIONS & PLUGINS                  */}
+          {/* ========================================================== */}
+          {activeTab === "integrations" && (
+            <div className="space-y-6">
+              <PlatformIntegrationsPanel
+                organizations={organizations}
+                onUpdated={() => loadAllData()}
+              />
+            </div>
+          )}
+
+          {/* ========================================================== */}
+          {/* TAB 8: PLATFORM SETTINGS & AUTH POLICY                     */}
           {/* ========================================================== */}
           {activeTab === "settings" && (
             <div className="space-y-6">
@@ -1896,11 +1920,6 @@ export function PlatformSuperAdminPortal({
                   </button>
                 </div>
               </form>
-
-              <PlatformIntegrationsPanel
-                organizations={organizations}
-                onUpdated={() => loadAllData()}
-              />
             </div>
           )}
         </main>
@@ -1910,7 +1929,7 @@ export function PlatformSuperAdminPortal({
       {/* DESKTOP SIDEBAR NAVIGATION (FIXED LEFT NAVIGATION)           */}
       {/* ------------------------------------------------------------ */}
       <aside className="hidden lg:flex fixed top-0 bottom-0 left-0 z-40 w-72 flex-col justify-between border-r border-stone-200/90 bg-white dark:border-stone-800/90 dark:bg-stone-900">
-        <div className="flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {/* Top Brand Header */}
           <div className="flex items-center gap-3 border-b border-stone-200/80 px-5 py-4 dark:border-stone-800/80">
             <BeamLineLogo
@@ -2024,23 +2043,32 @@ export function PlatformSuperAdminPortal({
         aria-label="Mobile Navigation"
         className="fixed bottom-0 left-0 right-0 z-40 lg:hidden border-t border-stone-200 bg-white/95 backdrop-blur-md dark:border-stone-800 dark:bg-stone-900/95"
       >
-        <div className="flex h-16 items-center justify-around px-2">
-          {navItems.slice(0, 5).map((item) => {
+        <div className="flex h-16 items-center justify-between gap-1 overflow-x-auto px-2">
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeTab === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
-                className={`flex flex-col items-center justify-center gap-1 py-1 transition cursor-pointer ${
+                onClick={() => {
+                  setActiveTab(item.id);
+                  setFeedback(null);
+                }}
+                className={`flex shrink-0 flex-col items-center justify-center gap-1 px-2.5 py-1 transition cursor-pointer ${
                   active
                     ? "text-amber-600 font-bold dark:text-amber-400"
                     : "text-stone-500 dark:text-stone-400"
                 }`}
               >
                 <Icon className="h-5 w-5" />
-                <span className="text-[10px] tracking-tight">{item.label.split(" ")[0]}</span>
+                <span className="text-[10px] tracking-tight whitespace-nowrap">
+                  {item.id === "integrations"
+                    ? "Integrations"
+                    : item.id === "settings"
+                    ? "Settings"
+                    : item.label.split(" ")[0]}
+                </span>
               </button>
             );
           })}
